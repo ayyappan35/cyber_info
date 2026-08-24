@@ -1,4 +1,7 @@
-const BASE_URL = "http://localhost:8000";
+// VITE_API_BASE_URL is read at build time - set it in Render's environment
+// variables to the deployed backend's URL; falls back to localhost for
+// local dev (`npm run dev`), where the backend runs on :8000 by default.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 function getToken() {
   return localStorage.getItem("token");
