@@ -1,0 +1,36 @@
+skill_id: jailbreak
+category: llm
+
+signals:
+  - id: question_has_override_language
+    type: boolean
+
+# The actual regex text `question_has_override_language` is computed from -
+# this skill owns it, since jailbreak's routing/floor are what consume it.
+# security_gateway/detection.py::flat_patterns_for() compiles this list;
+# gateway.py no longer hardcodes it. Case-insensitive by default - "DAN"
+# below locally disables that so it doesn't match the common name "Dan".
+patterns:
+  question_has_override_language:
+    - "ignore (all|any)?\\s*(previous|prior|above)?\\s*instructions"
+    - "disregard (the )?(above|previous|prior)"
+    - "\\byou are now\\b"
+    - "new instructions\\s*:"
+    - "act as (an? )?\\w+ with no restrictions"
+    - "\\bno restrictions\\b"
+    - "\\bdeveloper mode\\b"
+    - "\\b(?-i:DAN)\\b"
+    - "\\bjailbreak\\b"
+
+routing:
+  - field: question_has_override_language
+    op: eq
+    value: true
+    reason: "Escalates prompt-injection's baseline check with jailbreak-specific skill guidance once override language is present."
+
+floor:
+  field: question_has_override_language
+  op: eq
+  value: true
+  minimum_action: MITIGATE
+  reason: "Override/persona-bypass language has a low false-positive rate - worth a deterministic floor."

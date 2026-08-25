@@ -1,0 +1,4 @@
+skill_id: account-takeover
+overrides:
+  MITIGATE:
+    effect: sandbox_and_continue   # unlike brute-force/credential-stuffing's plain log_only - this success needs a reviewable record, not just a log line

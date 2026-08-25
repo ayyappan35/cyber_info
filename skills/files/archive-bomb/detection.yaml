@@ -1,0 +1,32 @@
+skill_id: archive-bomb
+category: files
+
+signals:
+  - id: extension
+    type: string
+  - id: compression_ratio
+    type: number
+    description: "uncompressed_size / compressed_size across all zip entries (archive_scan.py)"
+  - id: entry_count
+    type: integer
+  - id: max_nested_depth
+    type: integer
+
+routing:
+  - field: extension
+    op: eq
+    value: ".zip"
+
+# A list of independent floor rules - ANY matching rule's minimum_action
+# applies (the most restrictive wins if more than one matches).
+floor:
+  - field: compression_ratio
+    op: gte
+    value: 100
+    minimum_action: BLOCK
+    reason: "A 100x+ compression ratio has no legitimate document use case."
+  - field: entry_count
+    op: gte
+    value: 5000
+    minimum_action: BLOCK
+    reason: "Thousands of entries in an uploaded 'document' is itself the attack, regardless of ratio."

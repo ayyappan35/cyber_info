@@ -1,0 +1,20 @@
+skill_id: intent-drift
+category: agents
+wired: false
+
+signals:
+  - id: session_id
+    type: string
+  - id: original_goal_summary
+    type: string
+  - id: turn_count
+    type: integer
+  - id: actions_this_session
+    type: list
+  - id: goal_alignment_score
+    type: number
+    description: "Unimplemented in this build - see SKILL.md's 'what security boundaries apply'"
+
+# No routing rule, no floor - this skill is documented as a specification
+# only; see SKILL.md for why it's the hardest of the three agents/* skills
+# to make deterministic even in principle.

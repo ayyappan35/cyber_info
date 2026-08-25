@@ -1,0 +1,2 @@
+skill_id: malicious-pdf
+overrides: {}   # uses the file_security category's defaults as-is

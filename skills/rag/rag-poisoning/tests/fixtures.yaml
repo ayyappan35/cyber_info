@@ -1,0 +1,22 @@
+# Loaded by tests/test_rag_llm_skills.py (project root).
+- name: clean_context_no_imperative_language
+  evidence:
+    question: "What should I do about a brute force login attempt?"
+    context_has_imperative_language: false
+    question_has_override_language: false
+    question_has_extraction_language: false
+  expected_categories_selected:
+    llm: [prompt-injection]
+    rag: [rag-poisoning]
+  expected_floor_action: null
+
+- name: poisoned_context_triggers_floor
+  evidence:
+    question: "What should I do about a brute force login attempt?"
+    context_has_imperative_language: true
+    question_has_override_language: false
+    question_has_extraction_language: false
+  expected_categories_selected:
+    llm: [prompt-injection]
+    rag: [rag-poisoning]
+  expected_floor_action: MITIGATE

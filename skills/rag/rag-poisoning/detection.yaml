@@ -1,0 +1,34 @@
+skill_id: rag-poisoning
+category: rag
+default: true   # always included in the chat discussion - the baseline check on retrieved context every message
+
+signals:
+  - id: context_has_imperative_language
+    type: boolean
+    description: "Regex hit for instruction-shaped phrasing inside the retrieved context - patterns owned by this skill, below"
+
+# Same override-language phrases as llm/jailbreak's question-side check
+# (deliberately duplicated here rather than shared - this list applies to
+# the retrieved CONTEXT, a different field, and this file should be
+# readable standalone), plus two imperative-toward-the-assistant patterns
+# that don't apply to a user's own question the same way.
+patterns:
+  context_has_imperative_language:
+    - "ignore (all|any)?\\s*(previous|prior|above)?\\s*instructions"
+    - "disregard (the )?(above|previous|prior)"
+    - "\\byou are now\\b"
+    - "new instructions\\s*:"
+    - "act as (an? )?\\w+ with no restrictions"
+    - "\\bno restrictions\\b"
+    - "\\bdeveloper mode\\b"
+    - "\\b(?-i:DAN)\\b"
+    - "\\bjailbreak\\b"
+    - "\\bassistant (must|should|will)\\b"
+    - "\\byou must\\b"
+
+floor:
+  field: context_has_imperative_language
+  op: eq
+  value: true
+  minimum_action: MITIGATE
+  reason: "Trusted-content-that-instructs is the core poisoning signature - worth a deterministic floor."

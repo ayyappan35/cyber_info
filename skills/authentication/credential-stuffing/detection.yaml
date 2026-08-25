@@ -1,0 +1,26 @@
+skill_id: credential-stuffing
+category: authentication
+
+signals:
+  - id: distinct_usernames_from_source_5min
+    type: integer
+    description: Distinct usernames attempted from this request's source IP in the trailing 5 minutes (redis_tool)
+  - id: failed_attempts
+    type: integer
+  - id: recent_attempt_count_5min
+    type: integer
+  - id: this_attempt_success
+    type: boolean
+
+routing:
+  - field: distinct_usernames_from_source_5min
+    op: gte
+    value: 3
+    reason: "3+ distinct accounts from one source in 5 minutes is a spray pattern, not single-account brute force."
+
+floor:
+  field: distinct_usernames_from_source_5min
+  op: gte
+  value: 10
+  minimum_action: BLOCK
+  reason: "10+ distinct accounts from one source has essentially no innocent explanation."

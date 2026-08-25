@@ -1,0 +1,11 @@
+skill_id: pii-exposure
+overrides:
+  BLOCK:
+    # Overrides rag_security's default BLOCK effect (refuse_and_sandbox)
+    # with a dedicated flow: instead of passively sitting in the Sandbox
+    # tab, this deterministically queues the disclose_pii_answer MCP tool
+    # (security_gateway/mcp_gateway.py) for explicit admin approve/deny in
+    # the Admin Dashboard's "Pending Tool Approvals" section - the same
+    # real authorization gate block_ip/terminate_session/remove_vector go
+    # through, not a separate, weaker mechanism.
+    effect: tool_approval_required

@@ -1,0 +1,12 @@
+skill_id: prompt-injection
+category: llm
+default: true   # always included in the chat discussion - the baseline check on every message
+
+signals:
+  - id: question_has_override_language
+    type: boolean
+    description: "Deterministic regex hit for override phrasing in the user's own question (gateway.py::gather_chat_evidence)"
+
+# No floor - a regex hit alone (without the LLM's read of actual intent)
+# is too noisy to hard-enforce; it's evidence fed to judgment, not a
+# standalone rule (CLAUDE.md section 8).

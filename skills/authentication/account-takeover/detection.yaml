@@ -1,0 +1,24 @@
+skill_id: account-takeover
+category: authentication
+
+signals:
+  - id: this_attempt_success
+    type: boolean
+  - id: failed_attempts
+    type: integer
+    description: Failed attempts recorded against this account before this successful attempt
+  - id: recent_attempt_count_5min
+    type: integer
+
+routing:
+  - field: this_attempt_success
+    op: eq
+    value: true
+    and:
+      field: failed_attempts
+      op: gte
+      value: 3
+    reason: "A success immediately after 3+ recent failures on the SAME account is the takeover signature, not ordinary typo-correction."
+
+# No floor - see SKILL.md's "what security boundaries apply" for why this
+# is a deliberate choice, not an omission.

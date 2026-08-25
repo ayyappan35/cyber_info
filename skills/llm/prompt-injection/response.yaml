@@ -1,0 +1,2 @@
+skill_id: prompt-injection
+overrides: {}   # no per-skill overrides - uses the rag_security category's defaults from policies/security_gateway_policy.yaml as-is

@@ -1,0 +1,82 @@
+# Deterministic enforcement layer for security_gateway/gateway.py.
+#
+# The LLM (Security LLM Discussion node) proposes an action + confidence;
+# this file decides what a proposal is actually ALLOWED to do. The LLM
+# reasons about context - this file is the only place that says what's
+# permitted (CLAUDE.md section 7's SKILL/POLICY/LLM/MCP distinction). The
+# LLM can never edit this file, and gateway.py never trusts a proposed
+# action without checking it against these rules first.
+#
+# min_confidence_to_enforce: if the model's own confidence is below this,
+# its proposed action is downgraded one step (BLOCK->MITIGATE,
+# MITIGATE->ALLOW-with-log) rather than enforced at full strength - an
+# uncertain model should not get to fully block a legitimate request.
+categories:
+  authentication:
+    skill: brute_force
+    actions:
+      ALLOW:
+        enabled: true
+      MITIGATE:
+        enabled: true
+        effect: log_only          # flagged in SIEM, login still proceeds on correct password
+      BLOCK:
+        enabled: true
+        effect: redis_block       # identity added to the Redis/local block list
+        block_ttl_seconds: 900
+    min_confidence_to_enforce: 0.55
+
+  rag_security:
+    skill: rag_poisoning
+    actions:
+      ALLOW:
+        enabled: true
+      MITIGATE:
+        enabled: true
+        effect: sandbox_and_continue   # answer still returned, evidence sandboxed
+      BLOCK:
+        enabled: true
+        effect: refuse_and_sandbox     # fixed refusal message, no context/answer leaves the gateway
+    min_confidence_to_enforce: 0.5
+
+  file_security:
+    skill: malicious_pdf
+    actions:
+      ALLOW:
+        enabled: true
+      MITIGATE:
+        enabled: true
+        effect: sandbox_no_ingest      # file held in sandbox, never embedded
+      BLOCK:
+        enabled: true
+        effect: reject_and_sandbox     # HTTP 400 to uploader, evidence sandboxed
+    min_confidence_to_enforce: 0.5
+
+  agent_security:
+    skill: tool_abuse
+    actions:
+      ALLOW:
+        enabled: true
+      MITIGATE:
+        enabled: true
+        effect: log_only          # flagged in SIEM, but the requested tool is NOT executed -
+                                   # unlike authentication's MITIGATE, "never automatically trust
+                                   # another agent" (CLAUDE.md 4.5) means an ambiguous A2A message
+                                   # doesn't get the benefit of the doubt the way a login attempt does
+      BLOCK:
+        enabled: true
+        effect: refuse_and_sandbox    # message content quarantined as evidence, tool never executes
+    min_confidence_to_enforce: 0.55
+
+# Fail-closed default: if the LLM discussion node fails to return a valid,
+# schema-conforming decision after retrying (bad JSON, missing field, model
+# unreachable), gateway.py falls back to this action per category rather
+# than silently defaulting to ALLOW. agent_security defaults to BLOCK
+# rather than MITIGATE (unlike the other categories) - "do not
+# automatically trust another agent" means a failed discussion should not
+# let a tool request through in any form.
+fail_closed_action:
+  authentication: MITIGATE
+  rag_security: MITIGATE
+  file_security: MITIGATE
+  agent_security: BLOCK

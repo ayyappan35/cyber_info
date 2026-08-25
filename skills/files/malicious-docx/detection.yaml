@@ -1,0 +1,23 @@
+skill_id: malicious-docx
+category: files
+
+signals:
+  - id: extension
+    type: string
+  - id: macro_present
+    type: boolean
+    description: "True if word/vbaProject.bin exists inside the uploaded .docx zip structure (archive_scan.py)"
+  - id: text_sample
+    type: string
+
+routing:
+  - field: extension
+    op: eq
+    value: ".docx"
+
+floor:
+  field: macro_present
+  op: eq
+  value: true
+  minimum_action: MITIGATE
+  reason: "Macro presence alone, regardless of visible text, requires review before trust."

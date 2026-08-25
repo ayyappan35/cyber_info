@@ -1,0 +1,85 @@
+skill_id: pii-exposure
+category: rag
+
+signals:
+  - id: context_contains_pii
+    type: boolean
+    description: "Deterministic regex hit for phone/email patterns in the retrieved context (gateway.py::gather_chat_evidence)"
+  - id: pii_types_found
+    type: list
+    description: "Which PII categories matched, e.g. ['phone', 'email'] - address/government-ID/DOB are NOT covered yet"
+  - id: question_requests_personal_info
+    type: boolean
+    description: "Deterministic regex hit for contact/personal-info-seeking phrasing in the QUESTION itself (phone/email/mobile/contact/address/...)"
+
+# context_contains_pii is nested by PII subtype (security_gateway/
+# detection.py::nested_patterns_for) - adding a new type (e.g. an "ssn"
+# entry) here is enough to extend pii_types_found; no Python change
+# needed. Coverage gap stated honestly in SKILL.md: only phone/email
+# exist today.
+patterns:
+  context_contains_pii:
+    phone:
+      - "\\+\\d{1,3}[-.\\s]?\\d{9,10}\\b"
+      - "\\b\\d{3}[-.\\s]\\d{3}[-.\\s]\\d{4}\\b"
+      - "\\(\\d{3}\\)\\s?\\d{3}[-.\\s]?\\d{4}"
+    email:
+      - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+  question_requests_personal_info:
+    - "\\bphone\\b"
+    - "\\bmobile\\b"
+    - "\\be-?mail\\b"
+    - "\\bmail\\s*id\\b"
+    - "\\bcontact\\s*(info|information|details|number)?\\b"
+    - "\\bpersonal\\s*(info|information|details)\\b"
+    - "\\baddress\\b"
+    - "\\breach (him|her|them|out)\\b"
+
+routing:
+  # Routing stays broad on context_contains_pii alone - the discussion
+  # still gets pii-exposure's guidance whenever PII is present, even for
+  # a question not obviously asking for it, so the model can use its own
+  # judgment on ambiguous cases. Only the FLOOR below is narrowed.
+  - field: context_contains_pii
+    op: eq
+    value: true
+    reason: "Only added to the discussion when a real PII pattern is actually present in the retrieved context."
+
+floor:
+  # Real, observed false-positive (2026-08-24): gating on
+  # context_contains_pii alone blocked EVERY question that happened to
+  # retrieve a chunk containing a phone/email anywhere in it - "what's
+  # his top skill set" got blocked exactly as hard as "what's his phone
+  # number", because both retrieved the same resume chunk. The floor now
+  # requires BOTH conditions - PII actually present AND the question
+  # actually asking for contact/personal details - before it force-BLOCKs.
+  field: context_contains_pii
+  op: eq
+  value: true
+  and:
+    field: question_requests_personal_info
+    op: eq
+    value: true
+  minimum_action: BLOCK
+  reason: "Privacy-by-default for genuine contact-info lookups: withheld pending human review regardless of model judgment - but only when the question is actually asking for that information, not merely because the retrieved chunk happens to contain it somewhere."
+
+# Real, observed problem (2026-08-24), on BOTH supported LLM providers:
+# even with the floor above correctly excluding this case, and SKILL.md
+# explicitly telling the model "PII presence alone is not grounds to
+# withhold an unrelated answer," the model would still sometimes choose
+# BLOCK on its own initiative for a question like "what's his skill set"
+# simply because a phone/email happened to sit in the same retrieved
+# chunk - reasoning "the safest action is to gate disclosure" even while
+# correctly noting the question didn't ask for it. Prompt wording alone
+# didn't reliably fix this, so - symmetric to the floor above - a ceiling
+# caps the model's own excess caution the same way the floor raises its
+# under-caution. Never applied when question_requests_personal_info is
+# true (that's exactly when the floor above takes over instead), and
+# gateway.py never lets this ceiling cap below what an independent
+# floor from another skill (e.g. real jailbreak language) demands.
+ceiling:
+  field: question_requests_personal_info
+  op: eq
+  value: false
+  maximum_action: MITIGATE
+  reason: "Question does not ask for the contact/personal info itself - PII merely being present elsewhere in the retrieved chunk is not, on its own, grounds to gate an unrelated answer behind admin approval."

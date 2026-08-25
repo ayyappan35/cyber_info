@@ -1,0 +1,34 @@
+skill_id: tool-abuse
+category: agents
+wired: true   # 2026-08-24: real request_category="agent_security", see security_gateway/gateway.py
+default: true # baseline check on every agent-to-agent message, same role rag-poisoning plays for chat
+
+signals:
+  - id: agent_id
+    type: string
+  - id: requested_tool
+    type: string
+  - id: agent_registered_tools
+    type: list
+  - id: tool_in_registered_set
+    type: boolean
+
+routing:
+  - field: tool_in_registered_set
+    op: eq
+    value: false
+    reason: "A request for a tool outside the agent's registered set is the defining signal."
+
+# SKILL.md's own design note, now acted on: a tool-permission violation
+# isn't ambiguous the way e.g. jailbreak language can be - the registry is
+# the deterministic source of truth, so this is a hard floor, not left to
+# LLM judgment. It only ever RAISES the action (security_gateway/
+# detection.py::enforce_floor) - the LLM discussion still runs and its
+# reasoning is still recorded, this just guarantees the outcome can't be
+# talked down to ALLOW.
+floor:
+  field: tool_in_registered_set
+  op: eq
+  value: false
+  minimum_action: BLOCK
+  reason: "Requested tool is outside this agent's registered allowed_tools - the registry is the source of truth, not the message's own claims."

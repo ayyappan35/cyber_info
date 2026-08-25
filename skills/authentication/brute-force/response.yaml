@@ -1,0 +1,7 @@
+skill_id: brute-force
+# Overrides policies/security_gateway_policy.yaml's authentication.actions
+# for this skill specifically. Fields omitted here fall back to the
+# category-level default.
+overrides:
+  BLOCK:
+    block_ttl_seconds: 900   # 15 min - the category default, restated explicitly for clarity

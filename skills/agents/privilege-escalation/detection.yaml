@@ -1,0 +1,41 @@
+skill_id: privilege-escalation
+category: agents
+wired: true   # 2026-08-24: real request_category="agent_security", see security_gateway/gateway.py
+
+signals:
+  - id: agent_id
+    type: string
+  - id: role_at_session_start
+    type: string
+  - id: role_at_action_time
+    type: string
+  - id: role_changed
+    type: boolean
+    description: "role_at_action_time != role_at_session_start - computed in gateway.py::gather_agent_security_evidence, since the detection.yaml condition evaluator only compares a field against a literal, never two evidence fields against each other"
+  - id: role_change_event_id
+    type: integer
+    description: "null if no audited role-change event covers this agent since role_at_session_start was recorded"
+
+routing:
+  - field: role_changed
+    op: eq
+    value: true
+    and:
+      field: role_change_event_id
+      op: eq
+      value: null
+    reason: "Role changed without a logged, human-attributed change event."
+
+# SKILL.md's own design note, now acted on: once a real audited
+# role-change record exists to compare against, an unexplained difference
+# is unambiguous - "very likely" a hard boundary, as that file put it.
+floor:
+  field: role_changed
+  op: eq
+  value: true
+  and:
+    field: role_change_event_id
+    op: eq
+    value: null
+  minimum_action: BLOCK
+  reason: "Agent's role differs from what was recorded at session start, with no audited role-change event explaining it."

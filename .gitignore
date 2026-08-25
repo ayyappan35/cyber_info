@@ -1,0 +1,25 @@
+# Secrets
+.jwt_secret
+.env
+.env.example
+
+# Databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Vector store
+kb_chroma_db/
+
+# Quarantined uploads (real third-party content, never source control)
+sandbox/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

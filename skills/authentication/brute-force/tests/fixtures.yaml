@@ -1,0 +1,41 @@
+# Loaded by tests/test_authentication_skills.py (project root) against the
+# real security_gateway.threat_router / security_gateway.detection code -
+# these are not decorative, they are asserted against.
+- name: clean_first_time_login
+  evidence:
+    username: newuser
+    account_exists: true
+    failed_attempts: 0
+    account_locked: false
+    recent_attempt_count_5min: 1
+    already_blocked: false
+    this_attempt_success: true
+    distinct_usernames_from_source_5min: 1
+  expected_skill: brute-force
+  expected_floor_action: null
+
+- name: below_floor_threshold
+  evidence:
+    username: bob
+    account_exists: true
+    failed_attempts: 5
+    account_locked: false
+    recent_attempt_count_5min: 5
+    already_blocked: false
+    this_attempt_success: false
+    distinct_usernames_from_source_5min: 1
+  expected_skill: brute-force
+  expected_floor_action: null
+
+- name: at_floor_threshold
+  evidence:
+    username: bob
+    account_exists: true
+    failed_attempts: 20
+    account_locked: true
+    recent_attempt_count_5min: 20
+    already_blocked: false
+    this_attempt_success: false
+    distinct_usernames_from_source_5min: 1
+  expected_skill: brute-force
+  expected_floor_action: BLOCK

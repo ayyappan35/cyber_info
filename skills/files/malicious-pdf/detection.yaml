@@ -1,0 +1,26 @@
+skill_id: malicious-pdf
+category: files
+default: true   # fallback for any extension not claimed by a more specific skill (also explicitly matches .pdf/.md/.txt/.xlsx below)
+
+signals:
+  - id: extension
+    type: string
+  - id: pdf_marker_count
+    type: integer
+    description: "Count of /JavaScript, /JS, /OpenAction, /AA byte markers found (0 for non-PDF)"
+  - id: text_sample
+    type: string
+  - id: size_bytes
+    type: integer
+
+# No routing rule needed - `default: true` above already makes this the
+# fallback for .pdf/.md/.txt/.xlsx (every extension archive-bomb and
+# malicious-docx don't specifically claim); route_single() never
+# evaluates a default skill's routing rules.
+
+floor:
+  field: pdf_marker_count
+  op: gte
+  value: 2
+  minimum_action: MITIGATE
+  reason: "2+ active-content markers together is a strong enough signal to never leave to model judgment alone."

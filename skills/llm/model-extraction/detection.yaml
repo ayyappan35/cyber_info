@@ -1,0 +1,29 @@
+skill_id: model-extraction
+category: llm
+
+signals:
+  - id: question_has_extraction_language
+    type: boolean
+    description: "Regex hit for prompt/instruction-extraction phrasing - patterns owned by this skill, below"
+
+patterns:
+  question_has_extraction_language:
+    - "repeat (everything|your instructions|the system prompt)"
+    - "what (are|is) your (system )?(prompt|instructions)"
+    - "print your (system )?(prompt|instructions)"
+    - "reveal your (system )?prompt"
+    - "show me your (training data|system prompt)"
+    - "output your (prompt|instructions) verbatim"
+
+routing:
+  - field: question_has_extraction_language
+    op: eq
+    value: true
+    reason: "Only added to the discussion when extraction-style phrasing is actually present."
+
+floor:
+  field: question_has_extraction_language
+  op: eq
+  value: true
+  minimum_action: MITIGATE
+  reason: "Regex alone isn't reliable enough to hard-block ordinary discovery questions - MITIGATE, not BLOCK."

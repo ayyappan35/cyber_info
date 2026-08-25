@@ -1,0 +1,2 @@
+skill_id: rag-poisoning
+overrides: {}   # uses the rag_security category's defaults as-is

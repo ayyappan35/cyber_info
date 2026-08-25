@@ -1,0 +1,17 @@
+# A concrete example of the pattern this skill is meant to catch, used in
+# SKILL.md discussions and as a reference fixture for
+# tests/test_authentication_skills.py (project root) - not executable on
+# its own.
+scenario: "25 failed password guesses against 'admin' in under 3 minutes, same source"
+evidence:
+  username: admin
+  account_exists: true
+  failed_attempts: 25
+  account_locked: true
+  recent_attempt_count_5min: 25
+  already_blocked: false
+  this_attempt_success: false
+expected:
+  routed_skill: brute-force
+  floor_triggered: true
+  minimum_action: BLOCK

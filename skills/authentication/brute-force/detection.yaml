@@ -1,0 +1,27 @@
+skill_id: brute-force
+category: authentication
+default: true   # fallback when neither credential-stuffing nor account-takeover's routing rule matches
+
+signals:
+  - id: failed_attempts
+    type: integer
+    description: Consecutive failed attempts on this account (webapp_db.py)
+  - id: recent_attempt_count_5min
+    type: integer
+    description: Attempts by this username in the trailing 5 minutes (redis_tool)
+  - id: already_blocked
+    type: boolean
+  - id: this_attempt_success
+    type: boolean
+
+# No routing rule - this skill is the default/fallback for the
+# authentication category (see `default: true` above), matched only
+# after credential-stuffing and account-takeover's more specific rules
+# are checked and don't match.
+
+floor:
+  field: recent_attempt_count_5min
+  op: gte
+  value: 20
+  minimum_action: BLOCK
+  reason: "20+ attempts against one account in 5 minutes is unambiguous - never left to model judgment alone."

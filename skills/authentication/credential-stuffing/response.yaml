@@ -1,0 +1,4 @@
+skill_id: credential-stuffing
+overrides:
+  BLOCK:
+    block_ttl_seconds: 1800   # 30 min - longer than brute-force's 15 min; a spraying source is more likely automated/persistent

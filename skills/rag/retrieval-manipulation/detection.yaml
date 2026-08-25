@@ -1,0 +1,23 @@
+skill_id: retrieval-manipulation
+category: rag
+
+signals:
+  - id: question_targets_retrieval_params
+    type: boolean
+    description: "Regex hit for retrieval-bypass phrasing in the question - patterns owned by this skill, below"
+
+patterns:
+  question_targets_retrieval_params:
+    - "ignore relevance"
+    - "return (all|every) (chunk|document)"
+    - "show me (all|every) document"
+    - "\\braw chunk"
+    - "bypass (rank|ranking|filter)"
+
+routing:
+  - field: question_targets_retrieval_params
+    op: eq
+    value: true
+    reason: "Only added to the discussion when retrieval-bypass phrasing is actually present."
+
+# No floor - see SKILL.md.
