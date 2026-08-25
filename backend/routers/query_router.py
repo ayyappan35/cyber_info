@@ -26,19 +26,6 @@ from security_gateway import gateway
 
 router = APIRouter(prefix="/api/query", tags=["query"])
 
-_BLOCK_MESSAGE = ("I can't answer that - the security gateway flagged this request as a likely "
-                   "prompt injection / RAG poisoning attempt rather than a genuine security "
-                   "question. If this was a mistake, please rephrase.")
-_PII_BLOCK_MESSAGE = ("I can't share that - the retrieved content contains personal information "
-                       "(skills/rag/pii-exposure) that's withheld pending admin review, regardless of "
-                       "how the question was phrased. An admin can approve or deny disclosure in the "
-                       "Admin Dashboard's Pending Tool Approvals.")
-
-
-def _block_message(skill_ids: list) -> str:
-    return _PII_BLOCK_MESSAGE if "pii-exposure" in skill_ids else _BLOCK_MESSAGE
-
-
 def _security_steps(route_step: dict, discussion_step: dict) -> list:
     return [
         {"role": "tool_call", "name": "threat_router.route", "arguments": route_step["arguments"],
@@ -85,7 +72,7 @@ async def _run(request: Request, username: str, question: str, on_event=None) ->
              if t.tool_name == "disclose_pii_answer" and t.status == "pending_approval"),
             None,
         )
-        return {"answer": _block_message(result.skill_ids), "sources": [],
+        return {"answer": result.reasoning, "sources": [],
                 "transcript": _security_steps(route_step, discussion_step),
                 "gateway_action": "BLOCK", "pending_call_id": pending_call_id}
 
