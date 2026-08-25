@@ -38,7 +38,7 @@ deterministic policy layer before anything happens.
                 v             v              v
              ALLOW        MITIGATE         BLOCK
                               |
-                    deterministic floor/ceiling (detection.yaml)
+                    (detection.yaml)
                     can only RAISE toward BLOCK or CAP toward ALLOW
                               |
                               v
