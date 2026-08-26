@@ -13,7 +13,6 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [liveStatus, setLiveStatus] = useState("");
   const [liveTrace, setLiveTrace] = useState([]);
-  const [uploadStatus, setUploadStatus] = useState("");
 
   const refreshConversations = useCallback(async () => {
     const list = await api.listConversations();
@@ -133,18 +132,6 @@ export default function Chat() {
     }
   }
 
-  async function handleUpload(file) {
-    setUploadStatus(`Ingesting ${file.name}...`);
-    try {
-      const resp = await api.upload(file);
-      setUploadStatus(`Ingested ${resp.chunks_ingested} chunk(s) from ${resp.filename}`);
-    } catch (err) {
-      setUploadStatus(`Upload failed: ${err.message}`);
-    } finally {
-      setTimeout(() => setUploadStatus(""), 5000);
-    }
-  }
-
   return (
     <div className="flex h-full bg-charcoal">
       <Sidebar
@@ -162,12 +149,10 @@ export default function Chat() {
         <ChatWindow
           messages={messages}
           onSend={handleSend}
-          onUpload={handleUpload}
           onMessageApproval={handleMessageApproval}
           sending={sending}
           liveStatus={liveStatus}
           liveTrace={liveTrace}
-          uploadStatus={uploadStatus}
         />
       )}
     </div>

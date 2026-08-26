@@ -1,4 +1,4 @@
-import { ArrowUp, Check, ChevronRight, Cpu, Lock, Paperclip, X } from "lucide-react";
+import { ArrowUp, Check, ChevronRight, Cpu, Lock, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
@@ -13,12 +13,10 @@ const PROMPTS = [
 export default function ChatWindow({
   messages,
   onSend,
-  onUpload,
   onMessageApproval,
   sending,
   liveStatus,
   liveTrace,
-  uploadStatus,
 }) {
   const { username, isAdmin } = useAuth();
   const [input, setInput] = useState("");
@@ -26,7 +24,6 @@ export default function ChatWindow({
   const [llmConfig, setLlmConfig] = useState(null); // {provider, model, ...} from GET /api/security/llm-config
   const [decidingIndex, setDecidingIndex] = useState(null);
   const [switchingProvider, setSwitchingProvider] = useState(false);
-  const fileInputRef = useRef(null);
   const bottomRef = useRef(null);
 
   async function handleApproval(index, decision) {
@@ -70,12 +67,6 @@ export default function ChatWindow({
   function handlePrompt(text) {
     if (sending) return;
     onSend(text);
-  }
-
-  function handleFileChange(e) {
-    const file = e.target.files?.[0];
-    if (file) onUpload(file);
-    e.target.value = "";
   }
 
   const isEmpty = messages.length === 0;
@@ -237,27 +228,11 @@ export default function ChatWindow({
       )}
 
       <div className="border-t border-line bg-surface px-8 py-4 md:px-[14%]">
-        {uploadStatus && <div className="mb-2 text-xs text-copper">{uploadStatus}</div>}
 
         <form
           onSubmit={handleSubmit}
           className="flex items-center gap-2 rounded-2xl border border-line bg-charcoal px-2 py-2"
         >
-          <button
-            type="button"
-            title="Upload a training file (.md/.txt/.pdf/.xlsx/.docx/.zip)"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-dim transition hover:bg-surface-hover hover:text-ink"
-          >
-            <Paperclip size={16} />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".md,.txt,.pdf,.xlsx,.docx,.zip"
-            className="hidden"
-            onChange={handleFileChange}
-          />
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}

@@ -12,15 +12,35 @@ signals:
     type: string
   - id: size_bytes
     type: integer
+  - id: chunk_injection_score
+    type: number
+    description: "2026-08-26: per-chunk evidence only (security_gateway/chunk_scan.py) - a real
+      pre-trained prompt-injection classifier's (protectai/deberta-v3-base-prompt-injection-v2)
+      confidence (0.0-1.0) that ONE ingestion chunk's text is an injection attempt. Absent
+      (missing from evidence) for the whole-file byte/structure check above; present only when
+      gateway.analyze() is called per-chunk from backend/pipelines/ingest_chroma.py's per-chunk
+      scan path. A pre-filter score, not a verdict - the LLM still reasons over this chunk's
+      actual text."
 
 # No routing rule needed - `default: true` above already makes this the
 # fallback for .pdf/.md/.txt/.xlsx (every extension archive-bomb and
 # malicious-docx don't specifically claim); route_single() never
 # evaluates a default skill's routing rules.
 
+# Two independent floors - eval_condition/apply_floor takes the MOST
+# restrictive matching one, so both can be declared here without either
+# weakening the other. The pdf_marker_count floor governs the whole-file
+# byte-scan path; the chunk_injection_score floor governs the per-chunk
+# ML-classifier path - only one of the two fields is ever present on a
+# given evidence dict, so only one rule is ever live per call.
 floor:
-  field: pdf_marker_count
-  op: gte
-  value: 2
-  minimum_action: MITIGATE
-  reason: "2+ active-content markers together is a strong enough signal to never leave to model judgment alone."
+  - field: pdf_marker_count
+    op: gte
+    value: 2
+    minimum_action: MITIGATE
+    reason: "2+ active-content markers together is a strong enough signal to never leave to model judgment alone."
+  - field: chunk_injection_score
+    op: gte
+    value: 0.75
+    minimum_action: MITIGATE
+    reason: "The prompt-injection classifier (security_gateway/chunk_scan.py) is highly confident this chunk's text is an injection attempt (HIGH tier) - strong enough on its own to never leave to model judgment alone, matching the same reasoning the byte-marker floor above uses for whole-file structural evidence."

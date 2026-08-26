@@ -170,15 +170,20 @@ def extract_text_sample(filename: str, raw: bytes, max_chars: int = 4000) -> str
     return "\n\n".join(d.page_content for d in docs)[:max_chars]
 
 
-def add_to_kb(filename: str, raw: bytes, uploaded_by: str = "", category: str = "",
-              origin: str = "upload") -> dict:
-    """Chunks and embeds a file into cyber_defense_kb. Only ever called
-    after a File Security gateway ALLOW - see this module's docstring.
-    Returns {"document_id", "chunks"}; chunks=0 (document_id=None) if the
-    file produced no extractable text."""
+def prepare_chunks(filename: str, raw: bytes, uploaded_by: str = "", category: str = "",
+                    origin: str = "upload") -> dict:
+    """Loads + chunks + stamps metadata WITHOUT embedding - the split-out
+    first half of add_to_kb(), below. Lets a caller (backend/routers/
+    upload_router.py's per-chunk security scan) inspect/partition chunks
+    BEFORE any of them reach the vector store, so a poisoned chunk can be
+    quarantined individually while the rest of a legitimate document's
+    chunks still get embedded (security_gateway/chunk_scan.py). Returns
+    {"document_id", "chunks": [Document, ...]} -
+    {"document_id": None, "chunks": []} if the file produced no
+    extractable text."""
     docs = _load(filename, raw)
     if not docs:
-        return {"document_id": None, "chunks": 0}
+        return {"document_id": None, "chunks": []}
 
     document_id = uuid.uuid4().hex
     timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -199,8 +204,64 @@ def add_to_kb(filename: str, raw: bytes, uploaded_by: str = "", category: str = 
     for i, chunk in enumerate(chunks):
         chunk.metadata["chunk_id"] = f"{document_id}:{i}"
 
+    return {"document_id": document_id, "chunks": chunks}
+
+
+def embed_chunks(chunks: list) -> int:
+    """Embeds already-prepared Document chunks (from prepare_chunks) into
+    cyber_defense_kb. Returns the count actually embedded - a no-op on an
+    empty list (a fully-quarantined document has nothing left to embed;
+    Chroma's add_documents on an empty list is a wasted round trip, not
+    useful work)."""
+    if not chunks:
+        return 0
     get_vectorstore().add_documents(chunks)
-    return {"document_id": document_id, "chunks": len(chunks)}
+    return len(chunks)
+
+
+def embed_approved_chunk(filename: str, content: str, chunk_index, document_id: str,
+                          approved_by: str) -> int:
+    """The human-override counterpart to the automatic per-chunk scan in
+    backend/routers/upload_router.py::_scan_and_embed_chunks: an admin who
+    reviews a quarantined chunk in the Admin Dashboard's Sandbox tab and
+    decides it was actually safe can approve it straight into the vector
+    store, rather than only marking it reviewed (security_gateway/
+    mcp_tools/sandbox_tool.py::release() alone never re-ingests - see its
+    docstring). Reuses the SAME document_id as the chunk's original
+    siblings (stamped into the sandbox record's metadata at quarantine
+    time - see upload_router.py) so it groups back in with the rest of
+    that document rather than becoming an orphaned fragment. Always
+    embeds exactly 1 chunk - this is a deliberate one-at-a-time human
+    decision, never a batch operation."""
+    doc_id = document_id or uuid.uuid4().hex
+    chunk_id = f"{doc_id}:{chunk_index}" if chunk_index is not None else f"{doc_id}:approved"
+    doc = Document(
+        page_content=content,
+        metadata={
+            "source": filename,
+            "document_id": doc_id,
+            "chunk_id": chunk_id,
+            "origin": f"upload_approved:{approved_by}",
+            "uploaded_by": approved_by,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "provenance": f"upload_approved:{approved_by}",
+        },
+    )
+    return embed_chunks([doc])
+
+
+def add_to_kb(filename: str, raw: bytes, uploaded_by: str = "", category: str = "",
+              origin: str = "upload") -> dict:
+    """Chunks and embeds a file into cyber_defense_kb in one step - unchanged
+    convenience wrapper around prepare_chunks()+embed_chunks() for callers
+    that don't need per-chunk security scanning (seed_knowledge.py's
+    first-party trusted content, via ingest_files()). Only ever called
+    after a File Security gateway ALLOW - see this module's docstring.
+    Returns {"document_id", "chunks"}; chunks=0 (document_id=None) if the
+    file produced no extractable text."""
+    prepared = prepare_chunks(filename, raw, uploaded_by, category, origin)
+    n = embed_chunks(prepared["chunks"])
+    return {"document_id": prepared["document_id"], "chunks": n}
 
 
 def ingest_files(file_paths: List[str], category: str = "", origin: str = "seed") -> int:

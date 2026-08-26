@@ -34,11 +34,34 @@ def list_sandbox(released: bool = False, _admin: str = Depends(auth.require_admi
 
 @router.post("/sandbox/{sandbox_id}/release")
 def release_sandbox_item(sandbox_id: str, admin: str = Depends(auth.require_admin)):
+    """Marks the item reviewed - AND, for a per-chunk file_security
+    quarantine (backend/routers/upload_router.py's per-chunk scan, tagged
+    per_chunk=true in its metadata), also embeds that one chunk into the
+    vector store now, using the same document_id as its original
+    siblings. A whole-file or chat quarantine has no single chunk to
+    embed this way - those still only get marked reviewed, matching
+    sandbox_tool.release()'s existing behavior (re-upload to actually
+    ingest a whole file)."""
+    item = sandbox_tool.get(sandbox_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Sandbox item not found")
+
+    embedded = False
+    meta = item.get("metadata") or {}
+    if item.get("kind") == "text" and meta.get("per_chunk"):
+        from pipelines.ingest_chroma import embed_approved_chunk
+        embed_approved_chunk(
+            filename=meta.get("filename", "unknown"), content=item["content"],
+            chunk_index=meta.get("chunk_index"), document_id=meta.get("document_id"),
+            approved_by=admin,
+        )
+        embedded = True
+
     if not sandbox_tool.release(sandbox_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Sandbox item not found")
     security_db.log_security_event(agent_id=admin, tool_name="release_sandbox_item",
-                                    decision="released", detail=sandbox_id)
-    return {"sandbox_id": sandbox_id, "released": True}
+                                    decision="released", detail=f"{sandbox_id} embedded={embedded}")
+    return {"sandbox_id": sandbox_id, "released": True, "embedded": embedded}
 
 
 @router.get("/blocked")

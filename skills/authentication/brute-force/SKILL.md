@@ -45,8 +45,15 @@ knowledge: `search_threat_knowledge("brute force attack pattern")`.
   (`policies/security_gateway_policy.yaml`'s `redis_block` effect);
   `response.yaml` in this directory sets this skill's own
   `block_ttl_seconds`, overriding the category default.
-- `webapp_db.LOCKOUT_THRESHOLD`'s account-level lock is a separate,
-  always-on deterministic control, never weakened by this skill.
+- `webapp_db.LOCKOUT_THRESHOLD`'s account-level lock (3 consecutive failed
+  attempts - see knowledge/security_policies/account_lockout_policy.md) is
+  a separate, always-on deterministic control, never weakened by this
+  skill - it can lock the ACCOUNT well before this skill's own 20-attempts-
+  in-5-minutes floor (below) is ever reached. Don't conflate the two: 3
+  failed attempts locks the account (can't log in at all, regardless of
+  what this discussion concludes); 20 attempts in 5 minutes is this
+  skill's own floor that forces a Redis/local IDENTITY block via the
+  gateway - a different mechanism entirely.
 
 # How the result should be verified
 

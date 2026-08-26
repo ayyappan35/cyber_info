@@ -73,6 +73,8 @@ class UploadResponse(BaseModel):
     chunks_ingested: int
     document_id: Optional[str] = None
     trust_status: Optional[str] = None
+    chunks_quarantined: int = 0
+    quarantined_chunk_ids: List[str] = []
 
 
 class TrainingFileOut(BaseModel):

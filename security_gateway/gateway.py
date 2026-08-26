@@ -21,6 +21,7 @@ clamp is applied.
 """
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
@@ -264,13 +265,30 @@ def gather_authentication_evidence(username: str, source_ip: str, account_exists
 
 _PDF_ACTIVE_CONTENT_MARKERS = (b"/JavaScript", b"/JS", b"/OpenAction", b"/AA")
 
+# A plain `marker in raw` substring check false-positives on any longer PDF
+# name token that happens to start with the same bytes - real, observed
+# case (2026-08-25): a subsetted font's /BaseFont name (e.g.
+# "/AAAAAA+Inter-Bold" - the random 6-uppercase-letter subset-tag prefix
+# every subsetted font gets per the PDF spec) matches "/AA" as a pure
+# substring despite having nothing to do with an Additional-Actions
+# dictionary. Requiring the marker NOT be immediately followed by another
+# letter/digit (a real /AA entry is followed by whitespace or "<<", never
+# by more identifier characters) keeps genuine matches - including
+# multi-marker PDFs like the crafted /OpenAction+/JS+/JavaScript test case
+# verified working earlier - while excluding this font-tag class of false
+# positive. Applied to every marker, not just /AA, for the same reason.
+_PDF_MARKER_PATTERNS = {
+    marker: re.compile(re.escape(marker) + rb"(?![A-Za-z0-9])")
+    for marker in _PDF_ACTIVE_CONTENT_MARKERS
+}
+
 
 def gather_file_security_evidence(filename: str, raw: bytes, text_sample: str,
                                    uploaded_by: str, recent_uploads_by_uploader: int) -> dict:
     from security_gateway.archive_scan import is_zip, scan_zip_structure
 
     ext = os.path.splitext(filename)[1].lower()
-    markers = [m.decode() for m in _PDF_ACTIVE_CONTENT_MARKERS if m in raw] if ext == ".pdf" else []
+    markers = [m.decode() for m, pat in _PDF_MARKER_PATTERNS.items() if pat.search(raw)] if ext == ".pdf" else []
 
     evidence = {
         "filename": filename,
@@ -293,6 +311,31 @@ def gather_file_security_evidence(filename: str, raw: bytes, text_sample: str,
             "entry_count": archive.get("entry_count", 0),
         })
     return evidence
+
+
+# --- per-chunk file-security evidence (security_gateway/chunk_scan.py) ---
+# 2026-08-26: a SEPARATE evidence shape from gather_file_security_evidence
+# above - that one scans the whole file's bytes/structure before any
+# chunking happens; this one scans ONE already-produced ingestion chunk's
+# text, called once per chunk that exceeds chunk_scan.LOW_MAX from
+# backend/pipelines/ingest_chroma.py's per-chunk scan path. Reuses the
+# same context_has_imperative_language pattern registry rag-poisoning
+# already defines (skills/rag/rag-poisoning/detection.yaml) rather than a
+# second copy of the same regex list - this is the same "trusted content
+# that instructs" signature, just checked at ingestion time instead of
+# query time.
+
+def gather_chunk_security_evidence(filename: str, chunk_text: str, chunk_index: int,
+                                    injection_score: float, uploaded_by: str) -> dict:
+    return {
+        "filename": filename,
+        "chunk_index": chunk_index,
+        "text_sample": chunk_text[:2000],
+        "chunk_injection_score": injection_score,
+        "uploaded_by": uploaded_by,
+        "context_has_imperative_language": _any_match(
+            detection.flat_patterns_for("context_has_imperative_language"), chunk_text),
+    }
 
 
 # --- deterministic chat-evidence regex signals ---------------------------

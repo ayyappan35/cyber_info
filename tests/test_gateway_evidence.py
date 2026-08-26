@@ -10,6 +10,29 @@ def test_pdf_active_content_markers_detected():
     assert "/JavaScript" in evidence["pdf_active_content_markers"]
 
 
+def test_subsetted_font_tag_is_not_an_aa_marker_false_positive():
+    # Real, observed bug (2026-08-25/26): a subsetted font's /BaseFont name
+    # gets a random 6-uppercase-letter subset-tag prefix per the PDF spec
+    # (e.g. "/AAAAAA+Inter-Bold") - a naive `b"/AA" in raw` substring check
+    # matches this even though it has nothing to do with an Additional-
+    # Actions dictionary, quarantining entirely benign PDFs (resumes
+    # exported from Canva-style tools that subset fonts) on every upload.
+    raw = (b"%PDF-1.4\n148 0 obj << /Type /Font /Subtype /Type0 "
+           b"/BaseFont /AAAAAA+Inter-Bold /Encoding /Identity-H >>\nendobj\n")
+    evidence = gateway.gather_file_security_evidence("resume.pdf", raw, "resume text", "admin", 0)
+    assert evidence["pdf_active_content_markers"] == []
+    assert evidence["pdf_marker_count"] == 0
+
+
+def test_genuine_aa_marker_still_detected():
+    # The fix above must not blind the scan to a REAL /AA (Additional
+    # Actions) dictionary - only the font-subset-tag false-positive shape
+    # should be excluded.
+    raw = b"%PDF-1.4\n1 0 obj << /Type /Annot /AA << /E 2 0 R >> >>\nendobj\n"
+    evidence = gateway.gather_file_security_evidence("form.pdf", raw, "text", "admin", 0)
+    assert "/AA" in evidence["pdf_active_content_markers"]
+
+
 def test_no_markers_for_plain_markdown():
     raw = b"# Just a normal runbook\n\nRotate secrets every 90 days."
     evidence = gateway.gather_file_security_evidence("runbook.md", raw, "a normal runbook", "admin", 0)
