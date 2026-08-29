@@ -78,12 +78,17 @@ def _build_prompt(category: str, skills: list, evidence: dict, retrieved_knowled
         "Reason about whether this request is malicious under ANY of the given skills, then respond "
         "with ONLY a JSON object matching exactly this shape, no other text:\n"
         '{"action": "ALLOW"|"MITIGATE"|"BLOCK", "confidence": 0.0-1.0, '
-        '"threat_indicators": ["short phrase", ...], "reasoning": "1-3 sentences", '
+        '"threat_indicators": ["short phrase", ...], "reasoning": "1-2 short sentences, plain language", '
         '"required_tools": ["tool_name", ...]}\n\n'
         "ALLOW = no real threat signal under any skill. MITIGATE = suspicious but not severe/certain "
         "enough to fully deny. BLOCK = clear, high-confidence malicious pattern under at least one "
         "skill. Base your action and confidence only on the evidence and skill guidance given - do "
         "not invent evidence not present below.\n\n"
+        "reasoning: this is shown directly to end users, so keep it to at most 2 short, plain-language "
+        "sentences - state the threat pattern and the reason, nothing else. Never mention internal file "
+        "names, document names, skill IDs, function names, or system-implementation details, even if "
+        "they appear in the evidence or retrieved knowledge below; describe what those sources say, "
+        "never what they are called.\n\n"
         f"required_tools: propose ZERO OR MORE tool NAMES ONLY (no arguments - those are filled in "
         f"deterministically by the gateway, never by you) from this exact list, only if this specific "
         f"request genuinely calls for that remediation/investigation step: {tools_block}. An ALLOW "
