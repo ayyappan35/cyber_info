@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Full Pipeline — Login to Logout</title>
+<style>
+  :root{
+    /* Claude Desktop default light palette */
+    --bg:#F7F6F3; --panel:#FFFFFF; --panel-soft:#FBFAF8; --border:#E7E5DF;
+    --text:#211F1C; --muted:#6B6A64; --muted2:#8A8880;
+    --accent:#D97757; --accent-dark:#BF5F42; --accent-soft:#FBEAE3; --accent-line:#EFC9BA;
+    --green:#3E8B5E; --green-soft:#E7F3EB;
+    --amber:#B9862C; --amber-soft:#FBF1DE;
+    --blue:#4E7CA6; --blue-soft:#E9F1F8;
+    --red:#C1503F; --red-soft:#FBEBE8;
+    --teal:#3F8E82; --teal-soft:#E3F2EF;
+    --purple:#7B6CB0; --purple-soft:#EEEAF7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55;}
+  .wrap{max-width:760px; margin:0 auto; padding:48px 24px 90px;}
+  h1{font-size:1.6rem; margin:0 0 6px; letter-spacing:-0.01em;}
+  .sub{color:var(--muted); font-size:0.95rem; margin:0 0 30px;}
+  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.83em; color:var(--accent-dark);}
+
+  .legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:0 0 40px; font-size:0.8rem; color:var(--muted);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
+
+  /* vertical timeline */
+  .timeline{position:relative; padding-left:52px;}
+  .timeline::before{
+    content:""; position:absolute; left:21px; top:8px; bottom:8px; width:2px;
+    background:linear-gradient(var(--accent-line), var(--border) 90%);
+  }
+  .step{position:relative; margin-bottom:22px;}
+  .node{
+    position:absolute; left:-52px; top:0; width:44px; height:44px; border-radius:50%;
+    background:var(--panel); border:2px solid var(--accent); color:var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.95rem;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
+  }
+  .step.branch .node{border-color:var(--blue); color:var(--blue);}
+  .step.gate .node{border-color:var(--amber); color:var(--amber);}
+  .step.exit .node{border-color:var(--red); color:var(--red);}
+  .step.knowledge .node{border-color:var(--teal); color:var(--teal);}
+  .step.llm .node{border-color:var(--purple); color:var(--purple);}
+  .step.sub .node{width:36px; height:36px; left:-48px; font-size:0.82rem; top:2px;}
+  .step.sub .card{padding:13px 18px;}
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:16px 20px; box-shadow:0 1px 3px rgba(20,20,15,0.04);
+  }
+  .card h3{margin:0 0 4px; font-size:1.02rem;}
+  .card p{margin:0; font-size:0.86rem; color:var(--muted);}
+  .card .meta{margin-top:8px; font-size:0.78rem; color:var(--muted2);}
+  .pill{
+    display:inline-block; font-size:0.68rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
+    padding:2px 9px; border-radius:999px; margin-left:8px; vertical-align:middle;
+  }
+  .pill.ui{background:var(--accent-soft); color:var(--accent-dark);}
+  .pill.api{background:var(--blue-soft); color:var(--blue);}
+  .pill.gate{background:var(--amber-soft); color:var(--amber);}
+  .pill.state{background:var(--green-soft); color:var(--green);}
+  .pill.exit{background:var(--red-soft); color:var(--red);}
+  .pill.knowledge{background:var(--teal-soft); color:var(--teal);}
+  .pill.llm{background:var(--purple-soft); color:var(--purple);}
+
+  .kbgrid{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-top:10px;}
+  .kbchip{border:1px solid var(--border); background:var(--panel-soft); border-radius:8px; padding:7px 9px; font-size:0.72rem; color:var(--muted); text-align:center;}
+
+  .toolgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
+  .toolrow{display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--border); background:var(--panel-soft); border-radius:8px; padding:7px 10px; font-size:0.76rem;}
+  .toolrow code{font-size:0.75em;}
+  .tstat{font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em; padding:1px 7px; border-radius:999px; white-space:nowrap;}
+  .tstat.auto{background:var(--green-soft); color:var(--green);}
+  .tstat.approve{background:var(--red-soft); color:var(--red);}
+
+  /* branch sub-list inside the "chat workspace loop" card */
+  .subgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;}
+  .sub{border:1px solid var(--border); background:var(--panel-soft); border-radius:10px; padding:10px 12px;}
+  .sub h4{margin:0 0 2px; font-size:0.82rem;}
+  .sub p{margin:0; font-size:0.76rem; color:var(--muted);}
+
+  /* outcome split (ALLOW/MITIGATE vs BLOCK) */
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;}
+  .outcome{border-radius:10px; padding:10px 12px; font-size:0.8rem;}
+  .outcome.ok{background:var(--green-soft); border:1px solid #cfe8d8; color:#2b6b46;}
+  .outcome.blocked{background:var(--red-soft); border:1px solid #f0d3ce; color:#8f3b2e;}
+  .outcome b{display:block; margin-bottom:2px; font-size:0.78rem; text-transform:uppercase; letter-spacing:.02em;}
+
+  .loop-tag{
+    display:inline-flex; align-items:center; gap:6px; margin-top:10px; font-size:0.76rem; color:var(--blue);
+    background:var(--blue-soft); border:1px solid #cfe0ee; border-radius:999px; padding:3px 10px;
+  }
+
+  .footer{margin-top:48px; padding-top:18px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Full Pipeline — Login to Logout</h1>
+  <p class="sub">One continuous vertical flow: the real screen-by-screen UI journey (<code>frontend/src/</code>), expanded at the point a question is asked to show every step inside the AI Security Gateway — skill routing, knowledge retrieval, the LLM discussion, and MCP tool calling — before returning to the UI and, eventually, logout.</p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--accent)"></i>UI screen</span>
+    <span><i class="dot" style="background:var(--blue)"></i>User choice / branch</span>
+    <span><i class="dot" style="background:var(--amber)"></i>Evidence / control</span>
+    <span><i class="dot" style="background:var(--teal)"></i>Knowledge retrieval (RAG)</span>
+    <span><i class="dot" style="background:var(--purple)"></i>Security LLM Discussion / MCP tools</span>
+    <span><i class="dot" style="background:var(--red)"></i>Session ends</span>
+  </div>
+
+  <div class="timeline">
+
+    <div class="step">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Landing <span class="pill ui">UI</span></h3>
+        <p>Unauthenticated visit → <code>ProtectedRoute</code> has nothing to protect yet, so App.jsx routes to <code>/login</code> (or <code>/signup</code> for a new account).</p>
+        <div class="meta"><code>frontend/src/pages/Login.jsx</code> · <code>Signup.jsx</code></div>
+      </div>
+    </div>
+
+    <div class="step gate">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>Submit credentials <span class="pill gate">Backend</span></h3>
+        <p>Username/password (+ email on signup) posted to the API. Password check stays plain  bcrypt/JWT code — the AI Security Gateway separately reasons about the <i>attempt pattern</i> (failed-attempt count, lockout state) via the <code>authentication</code> category, independent of whether the password itself was right.</p>
+        <div class="meta"><code>POST /api/auth/login</code> or <code>/signup</code> · <code>auth_router.py</code></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Session established <span class="pill state">State</span></h3>
+        <p>JWT access token returned; <code>AuthContext</code> persists <code>token</code>, <code>username</code>, <code>role</code> to <code>localStorage</code> and flips <code>isAuthenticated</code> to true. First account ever created is auto-promoted to <code>role: admin</code>.</p>
+        <div class="meta"><code>frontend/src/context/AuthContext.jsx :: login() / signup()</code></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>Redirect to workspace <span class="pill ui">UI</span></h3>
+        <p><code>ProtectedRoute</code> now passes → <code>/chat</code> renders: Sidebar (conversation list, New chat, Admin Dashboard button if admin, theme toggle, account + Sign out) alongside the Chat window.</p>
+        <div class="meta"><code>GET /api/conversations</code> on load</div>
+      </div>
+    </div>
+
+    <div class="step branch">
+      <div class="node">5</div>
+      <div class="card">
+        <h3>Chat workspace <span class="pill api">User loop</span></h3>
+        <p>The user stays here for the rest of the session, looping between actions — this is the app's steady state, not a one-way step.</p>
+        <div class="subgrid">
+          <div class="sub"><h4>New chat / select / delete</h4><p>Switches or clears the active conversation.</p></div>
+          <div class="sub"><h4>Toggle theme</h4><p>Sun/moon icon — dark ⇄ light, <code>ThemeContext.jsx</code>.</p></div>
+          <div class="sub"><h4>Send a message</h4><p>Goes through the full Security Gateway pipeline — steps 6–15 below.</p></div>
+          <div class="sub"><h4>Admin Dashboard</h4><p>Admins only — see step 16.</p></div>
+        </div>
+        <span class="loop-tag">↻ repeats for the length of the session</span>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="node">6</div>
+      <div class="card">
+        <h3>User asks a question <span class="pill ui">UI</span></h3>
+        <p>Typed into the Chat window and submitted — this is the trigger for everything below. The message is sent immediately as a streaming request; the UI shows a live "Thinking…" status as each stage below reports progress.</p>
+        <div class="meta"><code>POST /api/query/stream</code> · <code>Chat.jsx :: handleSend()</code></div>
+      </div>
+    </div>
+
+    <div class="step sub">
+      <div class="node">7</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">Chat agent tool-use loop <span class="pill api">Agent</span></h3>
+        <p>Answers using up to 3 tools before anything is checked for safety: <code>search_knowledge_base</code> (internal KB), <code>get_skill_methodology</code> (this system's own detection knowledge), <code>search_external_web</code> (live DuckDuckGo lookup, entity/topic queries only).</p>
+        <div class="meta"><code>backend/pipelines/chat_agent.py</code></div>
+      </div>
+    </div>
+
+    <div class="step sub gate">
+      <div class="node">8</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">Evidence gathering <span class="pill gate"></span></h3>
+        <p>Regex signals computed over the question and everything actually retrieved — override language, extraction language, PII patterns, imperative-in-context language. Facts, not the LLM's opinion.</p>
+        <div class="meta"><code>gateway.py :: gather_chat_evidence()</code></div>
+      </div>
+    </div>
+
+    <div class="step sub">
+      <div class="node">9</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">Threat Router → skill selection <span class="pill api">Routing</span></h3>
+        <p>Dispatches to every matching skill under <code>skills/llm/</code> and <code>skills/rag/</code> at once — <code>prompt-injection</code> and <code>rag-poisoning</code> always run as the baseline; <code>jailbreak</code>, <code>model-extraction</code>, <code>pii-exposure</code>, <code>external-api-abuse</code> join only when their own pattern matches.</p>
+        <div class="meta"><code>threat_router.py :: route_chat()</code></div>
+      </div>
+    </div>
+
+    <div class="step sub knowledge">
+      <div class="node">10</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">Knowledge retrieval (RAG) <span class="pill knowledge">Threat KB</span></h3>
+        <p>Query built from the matched skill id(s), searched against the <code>security_threat_knowledge</code> Chroma collection — similarity search, reranked, top-4 chunks.</p>
+        <div class="kbgrid">
+          <div class="kbchip">prompt_injection.md</div>
+          <div class="kbchip">indirect_prompt_injection.md</div>
+          <div class="kbchip">rag_poisoning.md</div>
+          <div class="kbchip">mitre_atlas.md / data_exfiltration.md</div>
+        </div>
+        <div class="meta"><code>knowledge/cyber_defence/*.md</code> · <code>threat_knowledge.py</code></div>
+      </div>
+    </div>
+
+    <div class="step sub llm">
+      <div class="node">11</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">Security LLM Discussion <span class="pill llm">Ollama / Claude</span></h3>
+        <p>One real LLM call, fed the matched skills' methodology + retrieved knowledge together. Returns a Pydantic-validated decision — rejected outright if malformed, never coerced.</p>
+        <div class="meta"><code>action</code> · <code>confidence</code> · <code>threat_indicators</code> · <code>reasoning</code> · <code>required_tools</code></div>
+      </div>
+    </div>
+
+    <div class="step sub gate">
+      <div class="node">12</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">policy clamp</h3>
+        <p>A skill's floor can only <i>raise</i> the action toward BLOCK; a ceiling can only <i>cap</i> it toward ALLOW. Then <code>policy.py</code> checks <code>security_gateway_policy.yaml</code>: is this action enabled for the category, and does confidence clear the minimum? The LLM can never edit this file or bypass it.</p>
+        <div class="meta"><code>detection.py :: apply_floor()/apply_ceiling()</code> · <code>policy.py :: clamp_action()</code></div>
+      </div>
+    </div>
+
+    <div class="step sub llm">
+      <div class="node">13</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">MCP tool calling <span class="pill llm">Tool Authorization Gateway</span></h3>
+        <p>The clamped action fires its policy effect via <code>mcp_tools/</code>; any specific tool the LLM additionally proposed is independently checked against the 13-tool catalog — category scope, rate limit, then executed or queued.</p>
+        <div class="toolgrid">
+          <div class="toolrow"><code>quarantine_document</code><span class="tstat auto">auto</span></div>
+          <div class="toolrow"><code>get_document_provenance</code><span class="tstat auto">auto</span></div>
+          <div class="toolrow"><code>remove_vector</code><span class="tstat approve">approval</span></div>
+          <div class="toolrow"><code>disclose_pii_answer</code><span class="tstat approve">approval</span></div>
+        </div>
+        <div class="meta"><code>security_gateway/mcp_gateway.py :: authorize_and_execute()</code></div>
+      </div>
+    </div>
+
+    <div class="step sub">
+      <div class="node">14</div>
+      <div class="card">
+        <h3 style="font-size:0.94rem;">Verification + audit <span class="pill api">SIEM</span></h3>
+        <p>Real state is re-read (sandbox row actually exists?) before anything is reported successful — never trusted just because the write call didn't raise. Decision, reasoning, confidence, and matched skill ids logged for the Admin Dashboard.</p>
+        <div class="meta"><code>gateway.py :: _verify()</code> · <code>siem_tool.py :: log_decision()</code></div>
+      </div>
+    </div>
+
+    <div class="step gate">
+      <div class="node">15</div>
+      <div class="card">
+        <h3>Response returns to the UI <span class="pill gate">Outcome</span></h3>
+        <p>Back in <code>Chat.jsx</code> — the streamed result lands as one of two outcomes:</p>
+        <div class="split">
+          <div class="outcome ok"><b>ALLOW / MITIGATE</b>Real answer + sources shown; live agent trace available.</div>
+          <div class="outcome blocked"><b>BLOCK</b>Security LLM Discussion's own reasoning (step 11) shown as the refusal — a PII case instead shows a pending-admin-approval badge.</div>
+        </div>
+        <span class="loop-tag">↻ back to step 5 — the user can send another message</span>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="node">16</div>
+      <div class="card">
+        <h3>Admin Dashboard <span class="pill ui">UI, admin only</span></h3>
+        <p>Training/upload panel plus Overview, Sandbox, Blocked, Events, Chain, Users, and Pending Tool Approvals tabs — the same Sidebar toggle switches back to Chat at any time.</p>
+        <div class="meta"><code>frontend/src/components/TrainingPanel.jsx</code></div>
+      </div>
+    </div>
+
+    <div class="step exit">
+      <div class="node">17</div>
+      <div class="card">
+        <h3>Sign out <span class="pill exit">Ends session</span></h3>
+        <p>Best-effort server-side revoke first (token's <code>jti</code> added to <code>revoked_tokens</code> so it can't be reused even before it expires) — then local state is cleared regardless of whether that call succeeded; the user's intent to sign out always wins.</p>
+        <div class="meta"><code>POST /api/auth/logout</code> · <code>AuthContext.jsx :: logout()</code></div>
+      </div>
+    </div>
+
+    <div class="step exit">
+      <div class="node">18</div>
+      <div class="card">
+        <h3>Back to Login <span class="pill ui">UI</span></h3>
+        <p><code>localStorage</code> cleared, <code>isAuthenticated</code> false → every route falls back to <code>/login</code>. Session fully ended client- and server-side.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    Source: <code>frontend/src/App.jsx</code>, <code>context/AuthContext.jsx</code>, <code>pages/Chat.jsx</code>,
+    <code>components/Sidebar.jsx</code>, <code>backend/routers/auth_router.py</code>, and the AI Security Gateway
+    (<code>security_gateway/gateway.py</code>, <code>threat_router.py</code>, <code>detection.py</code>,
+    <code>policy.py</code>, <code>mcp_gateway.py</code>). Palette matches Claude Desktop's default light theme.
+    See <code>docs/full_pipeline.html</code> for the gateway's full skill taxonomy and 13-tool MCP catalog, and
+    <code>docs/pipeline_use_cases.html</code> for 10 concrete attack questions walked through the same pipeline.
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Skills, Knowledge &amp; Policy Reference</title>
+<style>
+  :root{
+    --bg:#F7F6F3; --panel:#FFFFFF; --panel-soft:#FBFAF8; --border:#E7E5DF;
+    --text:#211F1C; --muted:#6B6A64; --muted2:#8A8880;
+    --accent:#D97757; --accent-dark:#BF5F42; --accent-soft:#FBEAE3;
+    --green:#3E8B5E; --green-soft:#E7F3EB;
+    --amber:#B9862C; --amber-soft:#FBF1DE;
+    --blue:#4E7CA6; --blue-soft:#E9F1F8;
+    --red:#C1503F; --red-soft:#FBEBE8;
+    --teal:#3F8E82; --teal-soft:#E3F2EF;
+    --purple:#7B6CB0; --purple-soft:#EEEAF7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55;}
+  .wrap{max-width:1040px; margin:0 auto; padding:48px 24px 90px;}
+  h1{font-size:1.6rem; margin:0 0 6px; letter-spacing:-0.01em;}
+  h2{font-size:1.15rem; margin:44px 0 6px; color:var(--accent-dark);}
+  .sub{color:var(--muted); font-size:0.95rem; margin:0 0 8px; max-width:820px;}
+  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.83em; color:var(--accent-dark);}
+
+  /* funnel diagram */
+  .funnel{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:22px 0 10px;}
+  .col{border:1px solid var(--border); border-radius:12px; background:var(--panel); overflow:hidden;}
+  .col .hd{background:var(--accent-soft); color:var(--accent-dark); font-size:0.78rem; font-weight:700; padding:8px 10px; border-bottom:1px solid var(--border);}
+  .col ul{list-style:none; margin:0; padding:8px 10px; font-size:0.73rem;}
+  .col li{padding:4px 0; border-bottom:1px dashed var(--border); color:var(--text);}
+  .col li:last-child{border-bottom:none;}
+  .col li.def{color:var(--teal); font-weight:600;}
+  .col li.unw{color:var(--muted2); font-style:italic;}
+  .converge{text-align:center; color:var(--muted2); font-size:1.2rem; margin:4px 0;}
+  .funnelbox{max-width:640px; margin:8px auto 0; border:1px solid var(--border); background:var(--panel); border-radius:12px; padding:12px 18px; text-align:center; font-size:0.82rem; color:var(--muted);}
+  .funnelbox b{color:var(--text);}
+  .arrowdown{text-align:center; color:var(--muted2); font-size:1.1rem; margin:2px 0;}
+
+  /* policy at a glance */
+  .tbl-scroll{overflow-x:auto; margin:16px 0 8px; border:1px solid var(--border); border-radius:12px;}
+  table{border-collapse:collapse; width:100%; min-width:720px; font-size:0.83rem;}
+  thead th{background:var(--panel-soft); color:var(--accent-dark); text-align:left; font-weight:700; padding:9px 12px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  tbody td{padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:nth-child(odd){background:var(--panel);}
+  tbody tr:nth-child(even){background:var(--panel-soft);}
+  .muted{color:var(--muted); font-size:0.9em;}
+
+  .pill{display:inline-block; font-size:0.66rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase; padding:2px 8px; border-radius:999px;}
+  .pill.def{background:var(--teal-soft); color:var(--teal);}
+  .pill.unw{background:var(--amber-soft); color:var(--amber);}
+  .pill.gap{background:var(--red-soft); color:var(--red);}
+  .pill.override{background:var(--purple-soft); color:var(--purple);}
+  .pill.default2{background:var(--panel-soft); color:var(--muted2); border:1px solid var(--border);}
+
+  .kchip{display:inline-block; background:var(--teal-soft); color:var(--teal); border-radius:999px; padding:2px 9px; font-size:0.74rem; margin:2px 3px 2px 0;}
+  .kchip.biz{background:var(--blue-soft); color:var(--blue);}
+  .kchip.gapchip{background:var(--red-soft); color:var(--red);}
+
+  .note{margin:20px 0; padding:12px 16px; border:1px solid var(--border); border-left:4px solid var(--amber); background:var(--panel-soft); border-radius:8px; font-size:0.85rem; color:var(--muted);}
+  .footer{margin-top:52px; padding-top:18px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
+
+  @media (max-width:900px){ .funnel{grid-template-columns:1fr 1fr;} }
+  @media (max-width:560px){ .funnel{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Skills, Knowledge &amp; Policy Reference</h1>
+  <p class="sub">README.md's architecture diagram, expanded: every skill in the taxonomy, which knowledge actually grounds it, and which policy actually governs it — including where either one is thinner than it looks.</p>
+
+  <!-- ============ FUNNEL (README's diagram, in boxes) ============ -->
+  <div class="funnel">
+    <div class="col">
+      <div class="hd">authentication</div>
+      <ul>
+        <li>credential-stuffing</li>
+        <li>account-takeover</li>
+        <li class="def">brute-force <span class="pill def">default</span></li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="hd">llm <span style="opacity:.7;font-weight:400;">(chat, direct)</span></div>
+      <ul>
+        <li>jailbreak</li>
+        <li>model-extraction</li>
+        <li class="def">prompt-injection <span class="pill def">default</span></li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="hd">rag <span style="opacity:.7;font-weight:400;">(chat, retrieved)</span></div>
+      <ul>
+        <li>pii-exposure</li>
+        <li>external-api-abuse</li>
+        <li>retrieval-manipulation</li>
+        <li class="def">rag-poisoning <span class="pill def">default</span></li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="hd">files <span style="opacity:.7;font-weight:400;">(uploads)</span></div>
+      <ul>
+        <li>archive-bomb</li>
+        <li>malicious-docx</li>
+        <li class="def">malicious-pdf <span class="pill def">default</span></li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="hd">agents <span style="opacity:.7;font-weight:400;">(A2A)</span></div>
+      <ul>
+        <li class="def">tool-abuse <span class="pill def">default</span></li>
+        <li>privilege-escalation</li>
+        <li class="unw">intent-drift <span class="pill unw">unwired</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="converge">▼ ▼ ▼ ▼ ▼</div>
+  <div class="funnelbox">
+    <b>Security LLM Discussion</b> (Ollama / Claude, grounded in matched skills' <code>SKILL.md</code> + retrieved knowledge)
+  </div>
+  <div class="arrowdown">▼</div>
+  <div class="funnelbox">
+    <b>Decision</b> ALLOW · MITIGATE · BLOCK
+  </div>
+  <div class="arrowdown">▼</div>
+  <div class="funnelbox">
+    <b>Deterministic floor/ceiling</b> (<code>detection.yaml</code>) <b>+ policy clamp</b> (<code>security_gateway_policy.yaml</code>) — never the LLM's call
+  </div>
+  <div class="arrowdown">▼</div>
+  <div class="funnelbox">
+    <b>MCP Tools</b> — <code>redis_tool</code> · <code>siem_tool</code> · <code>sandbox_tool</code> · 13-tool authorization catalog
+  </div>
+
+  <!-- ============ POLICY AT A GLANCE ============ -->
+  <h2>Policy at a glance</h2>
+  <p class="sub"><code>policies/security_gateway_policy.yaml</code> — the 4 request categories every skill above inherits from unless its own <code>response.yaml</code> overrides a field.</p>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Category</th><th>MITIGATE effect</th><th>BLOCK effect</th><th>min confidence</th><th>Fail-closed</th></tr></thead>
+    <tbody>
+      <tr><td><code>authentication</code></td><td>log_only <span class="muted">(login still proceeds on correct password)</span></td><td><code>redis_block</code> <span class="muted">900s</span></td><td>0.55</td><td>MITIGATE</td></tr>
+      <tr><td><code>rag_security</code></td><td><code>sandbox_and_continue</code></td><td><code>refuse_and_sandbox</code></td><td>0.5</td><td>MITIGATE</td></tr>
+      <tr><td><code>file_security</code></td><td><code>sandbox_no_ingest</code></td><td><code>reject_and_sandbox</code></td><td>0.5</td><td>MITIGATE</td></tr>
+      <tr><td><code>agent_security</code></td><td>log_only <span class="muted">(tool NOT executed, unlike auth's MITIGATE)</span></td><td><code>refuse_and_sandbox</code></td><td>0.55</td><td><b>BLOCK</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ============ AUTHENTICATION ============ -->
+  <h2>authentication</h2>
+  <p class="sub">Threat-knowledge grounding (<code>security_threat_knowledge</code> collection) is seeded <b>only</b> from <code>knowledge/cyber_defence/*.md</code> — none of those 5 files are about login/credential attacks, so this category's LLM grounding is thin. The real depth is in the business-KB runbooks below, which the model never automatically sees unless the chat agent happens to retrieve them.</p>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Skill</th><th>Routing / floor</th><th>Knowledge</th><th>Policy</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>brute-force</code> <span class="pill def">default</span></td>
+        <td class="muted">Fallback when nothing else matches. Floor: 20+ attempts/5min on one account → hard BLOCK.</td>
+        <td><span class="kchip biz">brute_force_and_credential_stuffing.md</span><span class="kchip biz">brute_force_ttp_mapping.md</span><span class="kchip biz">account_lockout_policy.md</span><br><span class="kchip gapchip">no threat-knowledge match</span></td>
+        <td>BLOCK ttl restated 900s <span class="pill default2">= category default</span></td>
+      </tr>
+      <tr>
+        <td><code>credential-stuffing</code></td>
+        <td class="muted">Routes on 3+ distinct usernames from one source/5min. Floor: 10+ → hard BLOCK.</td>
+        <td><span class="kchip biz">brute_force_and_credential_stuffing.md</span><br><span class="kchip gapchip">no threat-knowledge match</span></td>
+        <td>BLOCK ttl <b>1800s</b> <span class="pill override">override</span> <span class="muted">— longer than brute-force's 900s (spraying reads as more automated/persistent)</span></td>
+      </tr>
+      <tr>
+        <td><code>account-takeover</code></td>
+        <td class="muted">Routes on success immediately after 3+ recent failures on the same account. No floor — deliberate, see SKILL.md.</td>
+        <td><span class="kchip biz">impossible_travel_and_anomalous_login.md</span><span class="kchip biz">session_hijacking_and_replay.md</span><span class="kchip biz">user_enumeration.md</span><br><span class="kchip gapchip">no threat-knowledge match</span></td>
+        <td>MITIGATE → <code>sandbox_and_continue</code> <span class="pill override">override</span> <span class="muted">— needs a reviewable record, not just a log line</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ============ LLM ============ -->
+  <h2>llm <span class="muted" style="font-size:0.9rem;">(chat, direct)</span></h2>
+  <p class="sub">The strongest-grounded category — <code>knowledge/cyber_defence/</code> is written for exactly this.</p>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Skill</th><th>Routing / floor</th><th>Knowledge</th><th>Policy</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>prompt-injection</code> <span class="pill def">default</span></td>
+        <td class="muted">Baseline on every chat message. No floor — a regex hit alone is too noisy to hard-enforce; feeds LLM judgment instead.</td>
+        <td><span class="kchip">prompt_injection.md</span><span class="kchip">indirect_prompt_injection.md</span><span class="kchip">mitre_atlas.md</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+      <tr>
+        <td><code>jailbreak</code></td>
+        <td class="muted">Routes on override-language regex ("ignore instructions", "you are now", "developer mode", "DAN"...). Floor: MITIGATE minimum.</td>
+        <td><span class="kchip">prompt_injection.md</span><span class="kchip">indirect_prompt_injection.md</span><span class="kchip">mitre_atlas.md</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+      <tr>
+        <td><code>model-extraction</code></td>
+        <td class="muted">Routes on extraction-language regex ("reveal your system prompt"...). Floor: MITIGATE minimum (not BLOCK — regex alone isn't reliable enough).</td>
+        <td><span class="kchip">prompt_injection.md</span><span class="kchip">mitre_atlas.md</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ============ RAG ============ -->
+  <h2>rag <span class="muted" style="font-size:0.9rem;">(chat, retrieved)</span></h2>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Skill</th><th>Routing / floor</th><th>Knowledge</th><th>Policy</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>rag-poisoning</code> <span class="pill def">default</span></td>
+        <td class="muted">Baseline on every chat message. Floor: imperative language in retrieved context → MITIGATE minimum.</td>
+        <td><span class="kchip">rag_poisoning.md</span><span class="kchip">indirect_prompt_injection.md</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+      <tr>
+        <td><code>pii-exposure</code></td>
+        <td class="muted">Routes when PII regex hits the retrieved context. Floor: PII present <i>and</i> question actually asks for it → hard BLOCK. Ceiling: caps model over-caution at MITIGATE when the question doesn't ask for it.</td>
+        <td><span class="kchip gapchip">no dedicated PII knowledge doc exists</span></td>
+        <td>BLOCK → <code>tool_approval_required</code> <span class="pill override">override</span> <span class="muted">— queues <code>disclose_pii_answer</code> for real admin approval instead of passive sandbox</span></td>
+      </tr>
+      <tr>
+        <td><code>external-api-abuse</code></td>
+        <td class="muted">Routes only when the agent actually called <code>search_external_web</code>. Floor: query names a private/internal host → hard BLOCK (SSRF); query looks like exfiltration (email/encoded blob) → MITIGATE.</td>
+        <td><span class="kchip">data_exfiltration.md</span> <span class="muted">(closest topical match, not dedicated)</span></td>
+        <td><span class="pill default2">category default</span> <span class="muted">— no response.yaml file exists for this skill</span></td>
+      </tr>
+      <tr>
+        <td><code>retrieval-manipulation</code></td>
+        <td class="muted">Routes on retrieval-bypass phrasing ("ignore relevance", "return all chunks", "bypass ranking"...). No floor.</td>
+        <td><span class="kchip gapchip">no dedicated knowledge doc exists</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ============ FILES ============ -->
+  <h2>files <span class="muted" style="font-size:0.9rem;">(uploads)</span></h2>
+  <div class="note" style="margin-top:8px;">The upload path's gateway check is currently <b>disabled</b> in this build (README, 2026-08-25 owner decision) — every upload embeds unconditionally. The rows below describe what runs when it's re-enabled.</div>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Skill</th><th>Routing / floor</th><th>Knowledge</th><th>Policy</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>malicious-pdf</code> <span class="pill def">default</span></td>
+        <td class="muted">Fallback for .pdf/.md/.txt/.xlsx. Two independent floors: 2+ active-content byte markers (<code>/JS</code>, <code>/OpenAction</code>...) → MITIGATE; per-chunk ML injection-classifier score ≥0.75 → MITIGATE.</td>
+        <td><span class="kchip gapchip">no file-security knowledge doc exists anywhere in knowledge/</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+      <tr>
+        <td><code>malicious-docx</code></td>
+        <td class="muted">Routes on <code>.docx</code> extension. Floor: VBA macro present → MITIGATE minimum, regardless of visible text.</td>
+        <td><span class="kchip gapchip">no file-security knowledge doc exists</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+      <tr>
+        <td><code>archive-bomb</code></td>
+        <td class="muted">Routes on <code>.zip</code> extension. Floor: 100x+ compression ratio → hard BLOCK; 5,000+ entries → hard BLOCK.</td>
+        <td><span class="kchip gapchip">no file-security knowledge doc exists</span></td>
+        <td><span class="pill default2">category default</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ============ AGENTS ============ -->
+  <h2>agents <span class="muted" style="font-size:0.9rem;">(A2A)</span></h2>
+  <div class="note" style="margin-top:8px;">The A2A path never runs the chat agent's knowledge-base search at all (<code>agent_router.py</code> calls the gateway directly) — so <code>owasp_agentic/agent_tool_misuse_and_injection.md</code>, the one business-KB doc that's actually about this, is <b>never consulted</b> for an A2A decision. The threat-knowledge collection is the only grounding these skills ever get, and none of its 5 files are agent/A2A-specific.</div>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Skill</th><th>Routing / floor</th><th>Knowledge</th><th>Policy</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>tool-abuse</code> <span class="pill def">default</span></td>
+        <td class="muted">Baseline on every A2A message. Floor: requested tool outside the sender's registered <code>allowed_tools</code> → hard BLOCK (registry is the source of truth, verified live).</td>
+        <td><span class="kchip">data_exfiltration.md</span><span class="kchip">indirect_prompt_injection.md</span><span class="kchip">rag_poisoning.md</span> <span class="muted">(closest available, not dedicated)</span><br><span class="kchip gapchip">agent_tool_misuse_and_injection.md exists but is unreachable here</span></td>
+        <td><span class="pill default2">category default</span> <span class="muted">— no response.yaml file exists for this skill</span></td>
+      </tr>
+      <tr>
+        <td><code>privilege-escalation</code></td>
+        <td class="muted">Routes when role changed with no audited change event. Floor: same condition → hard BLOCK.</td>
+        <td><span class="kchip gapchip">same gap as tool-abuse</span></td>
+        <td><span class="pill default2">category default</span> <span class="muted">— no response.yaml file exists for this skill</span></td>
+      </tr>
+      <tr>
+        <td><code>intent-drift</code> <span class="pill unw">unwired</span></td>
+        <td class="muted">No routing rule at all — never selected by <code>route_multi()</code>. Would need a <code>goal_alignment_score</code> this build doesn't compute (see its SKILL.md).</td>
+        <td class="muted">n/a</td>
+        <td class="muted">n/a</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <b>Reading the gaps honestly:</b> <code>files</code> and <code>agents</code> have zero dedicated threat-knowledge
+    documents — the Security LLM Discussion still runs and still reasons well (verified live — see
+    <code>docs/live_test_results.html</code>), but it's doing so on deterministic evidence + its own general
+    reasoning, not on knowledge written for that specific attack class. That's not a bug to silently paper over:
+    it's exactly the kind of thing <code>knowledge/cyber_defence/</code> should grow to cover next.
+  </div>
+
+  <div class="footer">
+    Source: <code>README.md</code>'s architecture diagram, <code>skills/&lt;category&gt;/&lt;skill&gt;/detection.yaml</code>
+    + <code>response.yaml</code>, <code>policies/security_gateway_policy.yaml</code>, <code>common/seed_knowledge.py</code>,
+    <code>backend/pipelines/threat_knowledge.py</code>. Same base palette as <code>docs/user_journey_login_to_logout.html</code>.
+  </div>
+
+</div>
+</body>
+</html>

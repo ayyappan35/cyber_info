@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 import auth
 from common import security_db
@@ -63,6 +64,13 @@ app.include_router(upload_router.router)
 app.include_router(admin_router.router)
 app.include_router(security_router.router)
 app.include_router(agent_router.router)
+
+# Static architecture/reference docs (docs/*.html) - served over HTTP rather
+# than opened as file:// links so they work identically in local dev and once
+# deployed. Read-only reference material, not an API surface, so no auth
+# dependency here; the Sidebar link to it is admin-gated instead.
+_DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs")
+app.mount("/docs-pages", StaticFiles(directory=_DOCS_DIR, html=True), name="docs-pages")
 
 
 @app.get("/api/health")
