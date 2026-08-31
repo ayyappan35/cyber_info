@@ -188,18 +188,22 @@ npm run dev
   discards the agent's tool-call transcript so flagged content can't
   leak via "Show agent trace" either.
 - **Upload** (`POST /api/upload`, admin-only,
-  `backend/routers/upload_router.py`): **the File Security gateway
-  check is currently disabled**, at the explicit, informed request of
-  the project owner (2026-08-25) — every upload is embedded into the
-  knowledge base unconditionally, with no scan, no quarantine, no LLM
-  review. This was verified working correctly before being turned off
-  (a crafted PDF with a real `/OpenAction`→`/JavaScript` payload
-  correctly triggered the deterministic floor → `BLOCK` → quarantine →
-  verified-never-ingested). To re-enable: route the upload through
-  `security_gateway.gateway.analyze("file_security", ...)` again before
-  `add_to_kb()`, as `skills/files/malicious-pdf/SKILL.md` and
-  `backend/pipelines/ingest_chroma.py`'s docstring describe — see git
-  history for `upload_router.py`'s prior version.
+  `backend/routers/upload_router.py`): a two-stage File Security check,
+  re-enabled and made chunk-granular on 2026-08-26 (the 2026-08-25
+  whole-file-only version, briefly disabled before that, is in git
+  history). Stage 1 is a whole-file structural/active-content scan
+  (`gateway.analyze("file_security", ...)` over the raw bytes — PDF
+  active-content markers, zip/archive-bomb/macro structure); a
+  MITIGATE/BLOCK here rejects the entire upload, sandboxed (a crafted
+  PDF with a real `/OpenAction`→`/JavaScript` payload correctly
+  triggers this — verified working, see
+  `tests/test_upload_chunk_quarantine.py`). Stage 2, only reached on
+  ALLOW, chunks the file and scores each chunk by embedding similarity
+  to known injection phrasing (`security_gateway/chunk_scan.py`); any
+  chunk at/above the LOW band gets its own gateway check and is
+  quarantined individually if flagged — every other chunk from the same
+  document still gets embedded, so one poisoned paragraph no longer
+  holds an otherwise-legitimate document hostage.
 
 ## Deterministic vs. LLM judgment
 

@@ -89,7 +89,7 @@
 <div class="wrap">
 
   <h1>Real-Time Pipeline Test — 10 Live Requests</h1>
-  <p class="sub">Not code-level simulation — these are real HTTP calls made against the running backend (<code>http://127.0.0.1:8000</code>), authenticated as a real logged-in user, producing real Claude Sonnet 5 Security LLM Discussion calls and real MCP tool decisions.</p>
+  <p class="sub">Not code-level simulation — these are real HTTP calls made against the running backend, authenticated as a real logged-in user, producing real Claude Sonnet 5 Security LLM Discussion calls and real MCP tool decisions.</p>
 
   <div class="runinfo">
     <span class="chip"><b>5</b> A2A / Tool-Poisoning requests → <code>POST /api/agents/message</code></span>
@@ -302,7 +302,7 @@
   </div>
 
   <div class="note">
-    <b>Two knowledge layers, both real:</b> the <span class="kbchip" style="display:inline;">teal chips</span> are
+    <b>Two knowledge layers, both real:</b>
     the <code>security_threat_knowledge</code> collection (<code>knowledge/cyber_defence/*.md</code>) that grounds
     the Security LLM Discussion's own reasoning — same 4 files every time here because all 5 questions routed to
     the same two skills. The "KB doc retrieved" row is a <i>different</i> collection — the business knowledge base
