@@ -4,14 +4,14 @@ import { BASE_URL } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 // The very first screen after login - just 3 entry points, nothing else.
-// Chat navigates into the SPA's chat app; Workflow/Live Demo are static
+// Chat navigates into the SPA's chat app; Pipeline/Scenario are static
 // docs served by the backend (backend/main.py's /docs-pages mount) and
 // redirect this same tab there, not a new one.
 const CARDS = [
-  { key: "chat", label: "Chat", desc: "Ask a detection or response question", icon: MessageSquare },
-  { key: "workflow", label: "Workflow", desc: "Full architecture pipeline diagram",
+  { key: "chat", label: "Ask & Chat", desc: "Ask a detection or response question", icon: MessageSquare },
+  { key: "pipeline", label: "Pipeline", desc: "Full architecture pipeline diagram",
     icon: GitBranch, href: `${BASE_URL}/docs-pages/architecture_flowchart.html` },
-  { key: "live-demo", label: "Live Demo", desc: "10 real attack questions, live gateway results",
+  { key: "scenario", label: "Scenario", desc: "10 real attack questions, live gateway results",
     icon: TestTube2, href: `${BASE_URL}/docs-pages/live_test_results.html` },
 ];
 

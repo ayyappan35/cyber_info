@@ -7,72 +7,78 @@
   :root{
     --bg:#F7F6F3; --panel:#FFFFFF; --panel-soft:#FBFAF8; --border:#E7E5DF; --line:#CFCCC3;
     --text:#211F1C; --muted:#6B6A64; --muted2:#8A8880;
-    --accent:#D97757; --accent-dark:#BF5F42; --accent-soft:#FBEAE3;
+    --clay:#D97757; --clay-dark:#BF5F42; --clay-soft:#FBEAE3;
+    --red:#C1503F; --red-soft:#FBEBE8;
     --green:#3E8B5E; --green-soft:#E7F3EB;
     --amber:#B9862C; --amber-soft:#FBF1DE;
-    --blue:#4E7CA6; --blue-soft:#E9F1F8;
-    --red:#C1503F; --red-soft:#FBEBE8;
-    --teal:#3F8E82; --teal-soft:#E3F2EF;
-    --purple:#7B6CB0; --purple-soft:#EEEAF7;
   }
   *{box-sizing:border-box;}
   body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.5;}
-  .wrap{max-width:1160px; margin:0 auto; padding:44px 20px 90px;}
+  .wrap{max-width:1080px; margin:0 auto; padding:44px 20px 90px;}
   h1{font-size:1.55rem; margin:0 0 6px; letter-spacing:-0.01em;}
-  .sub{color:var(--muted); font-size:0.93rem; margin:0 0 20px; max-width:800px;}
-  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.82em; color:var(--accent-dark);}
+  .sub{color:var(--muted); font-size:0.93rem; margin:0 0 18px; max-width:760px;}
+  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.82em; color:var(--clay-dark);}
 
-  .legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:0 0 22px; font-size:0.78rem; color:var(--muted);}
-  .legend span{display:inline-flex; align-items:center; gap:6px;}
-  .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
+  .legend{
+    display:flex; flex-wrap:wrap; gap:16px; margin:0 0 24px; font-size:0.82rem; color:var(--muted);
+    border:1px solid var(--border); background:var(--panel); border-radius:10px; padding:12px 16px;
+  }
+  .legend span{display:inline-flex; align-items:center; gap:7px;}
+  .swatch{width:26px; height:0; border-top:2px solid var(--text);}
+  .swatch.dashed{border-top-style:dashed; border-top-color:var(--muted2);}
+  .swatch.clay{border-top-color:var(--clay); border-top-width:3px;}
+  .swatch.red{border-top-color:var(--red); border-top-width:3px;}
 
   .diagram{width:100%; overflow-x:auto; border:1px solid var(--border); border-radius:16px; background:var(--panel); padding:8px;}
-  svg{display:block; min-width:900px;}
+  svg{display:block; min-width:820px;}
 
-  .node{
-    background:var(--panel); border:1.5px solid var(--border); border-radius:10px;
-    height:100%; width:100%; padding:6px 10px; text-align:center;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    font-size:11px; box-shadow:0 1px 2px rgba(20,20,15,0.05);
+  .box{
+    background:var(--panel); border-radius:10px; height:100%; width:100%;
+    padding:10px 14px 8px; text-align:left; display:flex; flex-direction:column; justify-content:flex-start;
+    box-shadow:0 1px 2px rgba(20,20,15,0.05); overflow:hidden;
   }
-  .node .t{font-weight:700; font-size:12px; margin-bottom:2px; color:var(--text);}
-  .node .d{color:var(--muted); font-size:10px; line-height:1.35;}
-  .node code{font-size:9px; padding:0 3px;}
+  .box.center{justify-content:center; align-items:center; text-align:center;}
+  .box .tag{font-size:8.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--muted2); margin-bottom:2px; line-height:1.2;}
+  .box .t{font-family:ui-monospace,Consolas,monospace; font-weight:700; font-size:12px; color:var(--text); line-height:1.3;}
+  .box .d{color:var(--muted); font-size:10.5px; line-height:1.35; margin-top:3px;}
+  .box .cite{margin-top:5px; font-family:ui-monospace,Consolas,monospace; font-size:9px; color:var(--muted2); line-height:1.3;}
 
-  .node.ui{border-color:var(--accent); border-width:2px;}
-  .node.ui .t{color:var(--accent-dark);}
-  .node.gate{border-color:var(--blue); border-width:2px;}
-  .node.gate .t{color:var(--blue);}
-  .node.route{border-color:var(--purple); border-width:2px;}
-  .node.route .t{color:var(--purple);}
-  .node.knowledge{border-color:var(--teal); border-width:2px;}
-  .node.knowledge .t{color:var(--teal);}
-  .node.llm{border-color:var(--purple); border-width:2px; background:var(--purple-soft);}
-  .node.llm .t{color:var(--purple);}
-  .node.allow{border-color:var(--green); background:var(--green-soft);}
-  .node.allow .t{color:var(--green);}
-  .node.mitigate{border-color:var(--amber); background:var(--amber-soft);}
-  .node.mitigate .t{color:var(--amber);}
-  .node.block{border-color:var(--red); background:var(--red-soft);}
-  .node.block .t{color:var(--red);}
-  .node.policy{border-color:var(--amber); border-width:2px; background:var(--amber-soft);}
-  .node.policy .t{color:var(--amber);}
-  .node.tool{border-color:var(--red); border-width:2px;}
-  .node.tool .t{color:var(--red-dark,var(--red));}
-  .node.verify{border-color:var(--green); border-width:2px;}
-  .node.verify .t{color:var(--green);}
-  .node.disabled{border-style:dashed; opacity:0.72;}
+  .solid{border:1.6px solid var(--text);}
+  .dashed{border:1.6px dashed var(--muted2);}
+  .dashed .t{font-style:italic;}
+  .gate{border:2px solid var(--clay); background:var(--clay-soft);}
+  .gate .t{color:var(--clay-dark);}
+  .deny{border:2px solid var(--red); background:var(--red-soft);}
+  .deny .t{color:var(--red); font-size:13px;}
+  .allow{border:1.6px solid var(--green); background:var(--green-soft);}
+  .allow .t{color:var(--green); font-size:13px;}
+  .mitigate{border:1.6px solid var(--amber); background:var(--amber-soft);}
+  .mitigate .t{color:var(--amber); font-size:13px;}
 
-  .cat ul{list-style:none; margin:3px 0 0; padding:0; font-size:9.5px; text-align:left; width:100%;}
-  .cat li{padding:1.5px 0 1.5px 10px; position:relative; color:var(--text);}
-  .cat li::before{content:"•"; position:absolute; left:0; color:var(--muted2);}
-  .cat li.def{color:var(--teal); font-weight:600;}
-  .cat li.unw{color:var(--muted2); font-style:italic;}
+  .chiprow{display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;}
+  .chip{background:var(--panel-soft); border:1px solid var(--border); border-radius:999px; padding:1px 8px; font-size:9px; color:var(--text); line-height:1.5;}
+  .chip.auto{background:var(--green-soft); border-color:#cfe8d8; color:#2b6b46;}
+  .chip.approve{background:var(--red-soft); border-color:#f0d3ce; color:#8f3b2e;}
+
+  .skillgrid{display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:6px;}
+  .skillcol{font-size:9px;}
+  .skillcol .cathead{font-weight:700; color:var(--clay-dark); margin-bottom:2px; font-family:ui-monospace,Consolas,monospace;}
+  .skillcol .sk{color:var(--text); padding:1px 0; line-height:1.25;}
+  .skillcol .sk.def{color:#2b6b46; font-weight:600;}
+  .skillcol .sk.unw{color:var(--muted2); font-style:italic;}
+
+  .polgrid{margin-top:6px; display:flex; flex-direction:column; gap:4px;}
+  .polrow{font-size:9.5px; color:var(--text); border-top:1px dotted var(--border); padding-top:4px; line-height:1.4;}
+  .polrow b{color:var(--clay-dark); font-family:ui-monospace,Consolas,monospace;}
 
   path.link{fill:none; stroke:var(--line); stroke-width:1.6;}
-  path.loop{fill:none; stroke:var(--accent); stroke-width:1.6; stroke-dasharray:5 4;}
-  text.lbl{font-size:10px; fill:var(--muted); font-style:italic;}
+  path.loop{fill:none; stroke:var(--clay); stroke-width:1.4; stroke-dasharray:4 4;}
+  text.lbl{font-size:9.5px; fill:var(--muted2); font-style:italic;}
 
+  .transport{
+    margin:18px auto 0; max-width:640px; text-align:center; font-size:0.82rem; color:var(--muted);
+    border-top:1px dashed var(--border); padding-top:14px;
+  }
   .footer{margin-top:30px; padding-top:16px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
 </style>
 </head>
@@ -80,156 +86,190 @@
 <div class="wrap">
 
   <h1>System Architecture — Flowchart</h1>
-  <p class="sub">One real branching diagram of the whole platform — UI, all 4 entry paths, the Threat Router's 5-category fan-out, the Security LLM Discussion, policy, the MCP tool catalog, and the loop back to the UI. Same content as README.md's architecture diagram, drawn as an actual flowchart rather than stacked cards.</p>
+  <p class="sub">One request, start to end — every skill, every knowledge source, every policy effect, and the full tool catalog, not just a summary. Same real functions as <code>security_gateway/gateway.py :: analyze()</code>, drawn as a linear stage/gate pipeline.</p>
 
   <div class="legend">
-    <span><i class="dot" style="background:var(--accent)"></i>UI</span>
-    <span><i class="dot" style="background:var(--blue)"></i>Gateway / evidence</span>
-    <span><i class="dot" style="background:var(--purple)"></i>Routing / LLM</span>
-    <span><i class="dot" style="background:var(--teal)"></i>Knowledge (RAG)</span>
-    <span><i class="dot" style="background:var(--amber)"></i>policy</span>
-    <span><i class="dot" style="background:var(--red)"></i>MCP tools</span>
-    <span><i class="dot" style="background:var(--green)"></i>Verification</span>
+    <span><i class="swatch"></i>solid — plain Python, enforcing</span>
+    <span><i class="swatch dashed"></i>dashed — language model, advisory</span>
+    <span><i class="swatch clay"></i>clay — a security gate</span>
+    <span><i class="swatch red"></i>red — the denial path</span>
   </div>
 
   <div class="diagram">
-  <svg viewBox="0 0 1120 1480" xmlns="http://www.w3.org/2000/svg">
+  <svg viewBox="0 0 1000 2200" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path>
       </marker>
-      <marker id="arrowAccent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"></path>
+      <marker id="arrowClay" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--clay)"></path>
       </marker>
     </defs>
 
-    <!-- ===== connectors (drawn first, under the nodes) ===== -->
-    <!-- UI -> 4 entry paths -->
-    <path class="link" d="M560,76 V104 M155,104 H965 M155,104 V132 M425,104 V132 M695,104 V132 M965,104 V132" marker-end="url(#arrow)"></path>
-    <!-- 4 entry paths -> Gateway -->
-    <path class="link" d="M155,202 V228 M425,202 V228 M695,202 V228 M965,202 V228 M155,228 H965 M560,228 V254" marker-end="url(#arrow)"></path>
-    <!-- Gateway -> Threat Router -->
-    <path class="link" d="M560,310 V344" marker-end="url(#arrow)"></path>
-    <!-- Threat Router -> 5 categories -->
-    <path class="link" d="M560,394 V418 M125,418 H995 M125,418 V444 M342.5,418 V444 M560,418 V444 M777.5,418 V444 M995,418 V444" marker-end="url(#arrow)"></path>
-    <!-- 5 categories -> Knowledge -->
-    <path class="link" d="M125,594 V618 M342.5,594 V618 M560,594 V618 M777.5,594 V618 M995,594 V618 M125,618 H995 M560,618 V644" marker-end="url(#arrow)"></path>
-    <!-- Knowledge -> LLM Discussion -->
-    <path class="link" d="M560,704 V738" marker-end="url(#arrow)"></path>
-    <!-- LLM Discussion -> 3 outcomes -->
-    <path class="link" d="M560,798 V832 M300,832 H820 M300,832 V858 M560,832 V858 M820,832 V858" marker-end="url(#arrow)"></path>
-    <!-- 3 outcomes -> Policy Clamp -->
-    <path class="link" d="M300,912 V936 M560,912 V936 M820,912 V936 M300,936 H820 M560,936 V950" marker-end="url(#arrow)"></path>
-    <!-- Policy -> MCP header -->
-    <path class="link" d="M560,1014 V1048" marker-end="url(#arrow)"></path>
-    <!-- MCP header -> 2 tool chips -->
-    <path class="link" d="M560,1122 V1146 M430,1146 H690 M430,1146 V1172 M690,1146 V1172" marker-end="url(#arrow)"></path>
-    <!-- 2 tool chips -> Verification -->
-    <path class="link" d="M430,1232 V1256 M690,1232 V1256 M430,1256 H690 M560,1256 V1282" marker-end="url(#arrow)"></path>
-    <!-- Verification -> Response -->
-    <path class="link" d="M560,1338 V1372" marker-end="url(#arrow)"></path>
-    <!-- loop back to UI -->
-    <path class="loop" d="M770,1404 H1100 V48 H720" marker-end="url(#arrowAccent)"></path>
-    <text class="lbl" x="1000" y="700" transform="rotate(90,1000,700)">↻ ready for the next request</text>
+    <!-- connectors -->
+    <path class="link" d="M500,124 V152" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,312 V340" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,460 V488" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,698 V726" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,871 V899" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,1019 V1047" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,1142 V1166" marker-end="url(#arrow)"></path>
+    <!-- Gate 3 -> 3-way outcome fork: trunk+spine (no arrowhead, not entering a box)... -->
+    <path class="link" d="M500,1396 V1420 M300,1420 H700"></path>
+    <!-- ...then each branch drawn separately so every one gets its own arrowhead -->
+    <path class="link" d="M300,1420 V1444" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,1420 V1444" marker-end="url(#arrow)"></path>
+    <path class="link" d="M700,1420 V1444" marker-end="url(#arrow)"></path>
+    <!-- outcomes -> merge: 3 branches + spine (no arrowhead) -->
+    <path class="link" d="M300,1498 V1522 M500,1498 V1522 M700,1498 V1522 M300,1522 H700"></path>
+    <!-- trunk into Stage 03 - the only segment that needs an arrowhead here -->
+    <path class="link" d="M500,1522 V1546" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,1756 V1784" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,1879 V1907" marker-end="url(#arrow)"></path>
+    <path class="link" d="M500,2019 V2047" marker-end="url(#arrow)"></path>
+    <!-- loop back to top -->
+    <path class="loop" d="M750,2092 H960 V72 H800" marker-end="url(#arrowClay)"></path>
+    <text class="lbl" x="985" y="1000" transform="rotate(90,985,1000)">↻ next request</text>
 
-    <!-- ===== nodes ===== -->
-    <foreignObject x="400" y="20" width="320" height="56"><div class="node ui" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">cyber_defence</div><div class="d"><code></code> Login/Signup · Chat · Admin Dashboard</div>
-    </div></foreignObject>
-
-    <foreignObject x="40" y="132" width="230" height="70"><div class="node gate" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Login</div><div class="d"><code>POST /api/auth/login</code><br><code>auth_router.py</code></div>
-    </div></foreignObject>
-    <foreignObject x="310" y="132" width="230" height="70"><div class="node gate" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Chat</div><div class="d"><code>POST /api/query(/stream)</code><br><code>query_router.py</code></div>
-    </div></foreignObject>
-    <foreignObject x="580" y="132" width="230" height="70"><div class="node gate disabled" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Upload <span style="color:var(--red);font-size:9px;">(gateway off)</span></div><div class="d"><code>POST /api/upload</code><br></div>
-    </div></foreignObject>
-    <foreignObject x="850" y="132" width="230" height="70"><div class="node gate" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Agent-to-Agent</div><div class="d"><code>POST /api/agents/message</code><br><code>agent_router.py</code></div>
+    <!-- ===== boxes ===== -->
+    <foreignObject x="200" y="20" width="600" height="104"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Entry</div>
+      <div class="t">Request enters</div>
+      <div class="d">Login &middot; Chat &middot; Upload (gateway disabled) &middot; Agent-to-Agent — each builds its own evidence</div>
+      <div class="cite">auth_router.py · query_router.py · upload_router.py · agent_router.py</div>
     </div></foreignObject>
 
-    <foreignObject x="390" y="254" width="340" height="56"><div class="node gate" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">AI Security Gateway</div><div class="d"><code>security_gateway/gateway.py :: analyze()</code></div>
+    <foreignObject x="200" y="152" width="600" height="160"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Business KB — chat path only</div>
+      <div class="t">search_knowledge_base()</div>
+      <div class="d">The chat agent's own retrieval, before any security check runs — this is what the ANSWER is grounded in, a separate collection from Stage 01's threat-knowledge below.</div>
+      <div class="chiprow">
+        <span class="chip">incident_response</span><span class="chip">mitre_attack</span><span class="chip">owasp_agentic</span><span class="chip">security_policies</span><span class="chip">tool_policies</span><span class="chip">cyber_defence</span>
+      </div>
+      <div class="cite">backend/pipelines/chat_agent.py · rag_search.py</div>
     </div></foreignObject>
 
-    <foreignObject x="420" y="344" width="280" height="50"><div class="node route" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Threat Router</div><div class="d"><code>threat_router.py</code> — dispatches to matching skill(s)</div>
+    <foreignObject x="200" y="340" width="600" height="120"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Stage 00</div>
+      <div class="t">gather_*_evidence()</div>
+      <div class="d">Evidence built from facts already known (attempt counts, registered tool sets, regex signals) — never from what the request itself claims.</div>
+      <div class="cite">security_gateway/gateway.py</div>
     </div></foreignObject>
 
-    <foreignObject x="30" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">authentication</div>
-      <ul><li>credential-stuffing</li><li>account-takeover</li><li class="def">brute-force · default</li></ul>
-    </div></foreignObject>
-    <foreignObject x="247.5" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">llm</div>
-      <ul><li>jailbreak</li><li>model-extraction</li><li class="def">prompt-injection · default</li></ul>
-    </div></foreignObject>
-    <foreignObject x="465" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">rag</div>
-      <ul><li>pii-exposure</li><li>external-api-abuse</li><li>retrieval-manipulation</li><li class="def">rag-poisoning · default</li></ul>
-    </div></foreignObject>
-    <foreignObject x="682.5" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">files</div>
-      <ul><li>archive-bomb</li><li>malicious-docx</li><li class="def">malicious-pdf · default</li></ul>
-    </div></foreignObject>
-    <foreignObject x="900" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">agents</div>
-      <ul><li class="def">tool-abuse · default</li><li>privilege-escalation</li><li class="unw">intent-drift</li></ul>
-    </div></foreignObject>
-
-    <foreignObject x="330" y="644" width="460" height="60"><div class="node knowledge" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Knowledge Retrieval (RAG)</div><div class="d"><code>security_threat_knowledge</code> — <code>knowledge/cyber_defence/*.md</code></div>
-    </div></foreignObject>
-
-    <foreignObject x="330" y="738" width="460" height="60"><div class="node llm" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Security LLM Discussion</div><div class="d">Ollama or Claude — returns action + confidence + reasoning + required_tools</div>
+    <foreignObject x="200" y="488" width="600" height="210"><div class="box gate" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Gate 1</div>
+      <div class="t">route_*()  —  "which skill(s) apply?"</div>
+      <div class="d">Threat Router dispatches evidence to every matching skill — all 16, across 5 categories:</div>
+      <div class="skillgrid">
+        <div class="skillcol"><div class="cathead">authentication</div>
+          <div class="sk">credential-stuffing</div><div class="sk">account-takeover</div><div class="sk def">brute-force · default</div>
+        </div>
+        <div class="skillcol"><div class="cathead">llm</div>
+          <div class="sk">jailbreak</div><div class="sk">model-extraction</div><div class="sk def">prompt-injection · default</div>
+        </div>
+        <div class="skillcol"><div class="cathead">rag</div>
+          <div class="sk">pii-exposure</div><div class="sk">external-api-abuse</div><div class="sk">retrieval-manipulation</div><div class="sk def">rag-poisoning · default</div>
+        </div>
+        <div class="skillcol"><div class="cathead">files</div>
+          <div class="sk">archive-bomb</div><div class="sk">malicious-docx</div><div class="sk def">malicious-pdf · default</div>
+        </div>
+        <div class="skillcol"><div class="cathead">agents</div>
+          <div class="sk def">tool-abuse · default</div><div class="sk">privilege-escalation</div><div class="sk unw">intent-drift · unwired</div>
+        </div>
+      </div>
+      <div class="cite">security_gateway/threat_router.py</div>
     </div></foreignObject>
 
-    <foreignObject x="200" y="858" width="200" height="54"><div class="node allow" xmlns="http://www.w3.org/1999/xhtml">
+    <foreignObject x="200" y="726" width="600" height="145"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Stage 01</div>
+      <div class="t">_search_threat_knowledge()</div>
+      <div class="d">Top-4 reranked chunks for the matched skill id(s), best-effort — retrieval failing never blocks the discussion. All 5 files that exist in this collection:</div>
+      <div class="chiprow">
+        <span class="chip">prompt_injection.md</span><span class="chip">indirect_prompt_injection.md</span><span class="chip">rag_poisoning.md</span><span class="chip">mitre_atlas.md</span><span class="chip">data_exfiltration.md</span>
+      </div>
+      <div class="cite">knowledge/cyber_defence/*.md</div>
+    </div></foreignObject>
+
+    <foreignObject x="200" y="899" width="600" height="120"><div class="box dashed" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Stage 02 — advisory</div>
+      <div class="t">discuss()</div>
+      <div class="d">Ollama or Claude reasons over the matched skills' methodology + retrieved knowledge → action / confidence / reasoning / required_tools.</div>
+      <div class="cite">security_gateway/llm_discussion.py</div>
+    </div></foreignObject>
+
+    <foreignObject x="200" y="1047" width="600" height="95"><div class="box gate" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Gate 2</div>
+      <div class="t">apply_floor() / apply_ceiling()</div>
+      <div class="d">"Does a hard minimum/maximum override the model's own proposal?"</div>
+      <div class="cite">security_gateway/detection.py</div>
+    </div></foreignObject>
+
+    <foreignObject x="200" y="1166" width="600" height="230"><div class="box gate" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Gate 3 — all 4 categories' real effects</div>
+      <div class="t">clamp_action()  —  "enabled? confidence over the bar?"</div>
+      <div class="polgrid">
+        <div class="polrow"><b>authentication</b> — MITIGATE: log_only &middot; BLOCK: redis_block (900s) &middot; min conf 0.55 &middot; fail-closed: MITIGATE</div>
+        <div class="polrow"><b>rag_security</b> — MITIGATE: sandbox_and_continue &middot; BLOCK: refuse_and_sandbox &middot; min conf 0.5 &middot; fail-closed: MITIGATE</div>
+        <div class="polrow"><b>file_security</b> — MITIGATE: sandbox_no_ingest &middot; BLOCK: reject_and_sandbox &middot; min conf 0.5 &middot; fail-closed: MITIGATE</div>
+        <div class="polrow"><b>agent_security</b> — MITIGATE: log_only (tool NOT executed) &middot; BLOCK: refuse_and_sandbox &middot; min conf 0.55 &middot; fail-closed: BLOCK</div>
+      </div>
+      <div class="cite">policies/security_gateway_policy.yaml</div>
+    </div></foreignObject>
+
+    <foreignObject x="215" y="1444" width="170" height="54"><div class="box center allow" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">ALLOW</div>
     </div></foreignObject>
-    <foreignObject x="460" y="858" width="200" height="54"><div class="node mitigate" xmlns="http://www.w3.org/1999/xhtml">
+    <foreignObject x="415" y="1444" width="170" height="54"><div class="box center mitigate" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">MITIGATE</div>
     </div></foreignObject>
-    <foreignObject x="720" y="858" width="200" height="54"><div class="node block" xmlns="http://www.w3.org/1999/xhtml">
+    <foreignObject x="615" y="1444" width="170" height="54"><div class="box center deny" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">BLOCK</div>
     </div></foreignObject>
 
-    <foreignObject x="300" y="950" width="520" height="64"><div class="node policy" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Policy</div><div class="d"><code>detection.py</code> + <code>policy.py</code> — the LLM can never edit or bypass this</div>
+    <foreignObject x="200" y="1546" width="600" height="210"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Stage 03 — all 13 catalog tools</div>
+      <div class="t">authorize_and_execute()</div>
+      <div class="d">Every LLM-proposed tool checked independently: catalog membership → category scope → rate limit → admin approval if critical/high risk.</div>
+      <div class="chiprow">
+        <span class="chip auto">get_login_attempts</span><span class="chip auto">get_ip_reputation</span><span class="chip auto">rate_limit_user</span><span class="chip auto">require_mfa</span><span class="chip auto">get_document_provenance</span><span class="chip auto">quarantine_document</span><span class="chip auto">search_external_web</span>
+        <span class="chip approve">block_ip</span><span class="chip approve">terminate_session</span><span class="chip approve">remove_vector</span><span class="chip approve">disclose_pii_answer</span><span class="chip approve">revoke_agent_credentials</span><span class="chip approve">remove_agent_tool_access</span>
+      </div>
+      <div class="cite">security_gateway/mcp_gateway.py — green: auto-execute · red: requires admin approval</div>
     </div></foreignObject>
 
-    <foreignObject x="300" y="1048" width="520" height="74"><div class="node tool" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">MCP Tool Authorization Gateway</div>
-      <div class="d"><code>mcp_gateway.py</code> — every proposed tool: in the 13-tool catalog → scoped to this category  → <b>tools</b> before executing</div>
+    <foreignObject x="200" y="1784" width="600" height="95"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Stage 04</div>
+      <div class="t">_verify()</div>
+      <div class="d">Re-reads real state (is it actually blocked? does the sandbox row exist?) before anything is reported successful.</div>
     </div></foreignObject>
 
-    <foreignObject x="320" y="1172" width="220" height="60"><div class="node tool" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">sandbox_tool</div><div class="d">quarantine — held, never embedded</div>
-    </div></foreignObject>
-    <foreignObject x="580" y="1172" width="220" height="60"><div class="node tool" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Approval Queue</div><div class="d">critical/high-risk tools — admin sign-off in the Dashboard</div>
-    </div></foreignObject>
-
-    <foreignObject x="330" y="1282" width="460" height="56"><div class="node verify" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Verification + Audit</div><div class="d"><code>_verify()</code> re-reads real state · <code></code> logs the decision</div>
+    <foreignObject x="200" y="1907" width="600" height="112"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Stage 05</div>
+      <div class="t">log_decision()</div>
+      <div class="d">Decision + reasoning + confidence + matched skill_ids written to security_events / gateway_decisions.</div>
+      <div class="cite">security_gateway/mcp_tools/siem_tool.py</div>
     </div></foreignObject>
 
-    <foreignObject x="350" y="1372" width="420" height="64"><div class="node ui" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Response → back to UI</div><div class="d">BLOCK: the LLM's own reasoning as the refusal · ALLOW/MITIGATE: real answer + sources</div>
+    <foreignObject x="250" y="2047" width="500" height="90"><div class="box solid" xmlns="http://www.w3.org/1999/xhtml">
+      <div class="tag">Response</div>
+      <div class="t">back to the UI</div>
+      <div class="d">BLOCK: the model's own reasoning (Stage 02) as the refusal · ALLOW/MITIGATE: the real answer + sources</div>
     </div></foreignObject>
 
   </svg>
   </div>
 
+  <p class="transport">
+    <b>Transport:</b> <code>/api/query/stream</code> (and the agent/auth equivalents) — Server-Sent Events, emits each stage live as <code>thinking</code> / <code>tool_call</code> / <code>reasoning</code> events, not just a static spinner.
+  </p>
+
   <div class="footer">
-    Source: <code>README.md</code>'s architecture diagram, <code>security_gateway/gateway.py</code>,
-    <code>threat_router.py</code>, <code>mcp_gateway.py</code>. Same base palette as
-    <code>docs/user_journey_login_to_logout.html</code>; the loop (dashed, top-right) shows the same request
-    cycle repeating for the next question — see <code>docs/live_test_results.html</code> for real, live
-    outcomes flowing through this exact path.
+    Layout convention (solid/dashed/clay/denial-red, stage/gate numbering) adapted from
+    diagram. Content is our own, and now exhaustive: all 16 skills (<code>security_gateway/skills.py</code>), all
+    5 threat-knowledge files (<code>knowledge/cyber_defence/</code>), the business KB's 5 other folders
+    (<code>knowledge/</code>), all 4 policy categories' real effects (<code>security_gateway_policy.yaml</code>),
+    and all 13 MCP catalog tools (<code>mcp_gateway.py</code>). See <code>docs/live_test_results.html</code> for
+    real, live outcomes flowing through this exact path.
   </div>
 
 </div>
