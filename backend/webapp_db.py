@@ -15,6 +15,12 @@ from datetime import datetime, timezone
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(_PROJECT_ROOT, "cyberdefense.db")
 
+# agentic_system branch: main's LOCKOUT_THRESHOLD=3 fixed-count auto-lock
+# is REMOVED - account locking is now driven entirely by the Security
+# Gateway's own agentic BLOCK verdict (see lock_account() below). This
+# constant is kept only so anything on this branch that still imports it
+# (docs, stale references) fails loudly/obviously rather than silently -
+# nothing in this branch's actual control flow reads it anymore.
 LOCKOUT_THRESHOLD = 3
 
 
@@ -147,7 +153,7 @@ def user_count() -> int:
 def list_users():
     conn = _conn()
     rows = conn.execute(
-        "SELECT username, email, role, locked, created_at FROM app_users ORDER BY created_at ASC"
+        "SELECT username, email, role, locked, mfa_hold, created_at FROM app_users ORDER BY created_at ASC"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -176,23 +182,40 @@ def set_sessions_invalidated_before(username: str, cutoff_iso: str):
 
 
 def record_failed_login(username: str):
-    """Increment failed_attempts and lock the account once LOCKOUT_THRESHOLD
-    is reached, mirroring db.py's attempt_login for the mock cyber-range
-    login. Returns the updated (failed_attempts, locked) state."""
+    """agentic_system branch: increments failed_attempts as evidence only
+    - does NOT auto-lock at a fixed threshold anymore (main's
+    LOCKOUT_THRESHOLD=3 rule is removed on this branch). Locking the
+    account is now driven entirely by the Security Gateway's own agentic
+    BLOCK verdict - see lock_account() below and
+    backend/routers/auth_router.py. Returns the updated failed_attempts
+    count (never "locked": True from here anymore)."""
     conn = _conn()
     row = conn.execute("SELECT failed_attempts FROM app_users WHERE username = ?", (username,)).fetchone()
     if row is None:
         conn.close()
         return None
     failed = row["failed_attempts"] + 1
-    locked = 1 if failed >= LOCKOUT_THRESHOLD else 0
-    conn.execute(
-        "UPDATE app_users SET failed_attempts = ?, locked = ? WHERE username = ?",
-        (failed, locked, username),
-    )
+    conn.execute("UPDATE app_users SET failed_attempts = ? WHERE username = ?", (failed, username))
     conn.commit()
     conn.close()
-    return {"failed_attempts": failed, "locked": bool(locked)}
+    return {"failed_attempts": failed, "locked": False}
+
+
+def lock_account(username: str) -> bool:
+    """agentic_system branch: the ONLY way an account gets locked now -
+    called from backend/routers/auth_router.py exactly when
+    security_gateway/gateway.py's Security LLM verdict is BLOCK, replacing
+    main's fixed "3 wrong passwords" rule with the model's own judgment
+    call. Returns False if the username doesn't exist."""
+    conn = _conn()
+    row = conn.execute("SELECT username FROM app_users WHERE username = ?", (username,)).fetchone()
+    if row is None:
+        conn.close()
+        return False
+    conn.execute("UPDATE app_users SET locked = 1 WHERE username = ?", (username,))
+    conn.commit()
+    conn.close()
+    return True
 
 
 def reset_failed_login(username: str):
@@ -202,6 +225,31 @@ def reset_failed_login(username: str):
     )
     conn.commit()
     conn.close()
+
+
+def unlock_account(username: str) -> bool:
+    """Admin-only: clears both `locked` and `failed_attempts`. On the
+    agentic_system branch `locked` is set by lock_account() (driven by
+    the Security Gateway's BLOCK verdict, not a fixed count), but
+    clearing failed_attempts too still matters - it's real evidence fed
+    back into the next login's evidence dict, and a fresh start is what
+    "unlock" should mean either way. Nothing else in this codebase can
+    ever clear a lock: auth_router.py's login only calls
+    reset_failed_login() on a SUCCESSFUL login, and a locked account can
+    never succeed (locked is checked before the password even is) - so
+    without this, a lock is otherwise permanent. Returns False if the
+    username doesn't exist."""
+    conn = _conn()
+    row = conn.execute("SELECT username FROM app_users WHERE username = ?", (username,)).fetchone()
+    if row is None:
+        conn.close()
+        return False
+    conn.execute(
+        "UPDATE app_users SET locked = 0, failed_attempts = 0 WHERE username = ?", (username,)
+    )
+    conn.commit()
+    conn.close()
+    return True
 
 
 def create_conversation(username: str, title: str = "New chat") -> str:

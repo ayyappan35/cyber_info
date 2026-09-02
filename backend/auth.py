@@ -43,6 +43,23 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
+# Username-enumeration timing fix: a real bcrypt check is deliberately
+# slow (that's the point of bcrypt), so a login attempt against a
+# username that doesn't exist - which never reaches verify_password()
+# at all - responds measurably FASTER than one against a real username
+# with a wrong password, even though both return the exact same
+# "Invalid username or password" text (auth_router.py). That timing gap
+# is itself an enumeration side-channel. DUMMY_PASSWORD_HASH is a real
+# bcrypt hash (same cost factor as every real one, via hash_password())
+# of a random value nobody will ever type - auth_router.py runs
+# verify_password() against it for a nonexistent username, burning the
+# same CPU work a real check would, purely so response timing carries no
+# signal either way. Generated once per process at import time (not
+# persisted, not tied to any account) - a fresh value each restart is
+# fine since it's never meant to match anything.
+DUMMY_PASSWORD_HASH = hash_password(secrets.token_hex(32))
+
+
 def create_access_token(username: str) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

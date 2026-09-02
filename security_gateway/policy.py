@@ -79,7 +79,7 @@ def clamp_action(category: str, proposed_action: str, confidence: float, skill: 
        original proposal for audit purposes by the caller).
 
     `skill`, if given, is (taxonomy_category, skill_id) - the specific
-    skill the Threat Router selected, whose response.yaml may override
+    skill the Supervisor Agent selected, whose response.yaml may override
     the category-level config below."""
     policy = load_policy()
     cat_policy = policy.categories.get(category)

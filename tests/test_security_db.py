@@ -50,6 +50,23 @@ def test_block_identity_expired_not_blocked(monkeypatch, temp_sqlite_path):
     assert security_db.is_identity_blocked("carol", "authentication") is False
 
 
+def test_unblock_identity_clears_an_active_block(monkeypatch, temp_sqlite_path):
+    monkeypatch.setattr(security_db, "DB_PATH", temp_sqlite_path)
+    security_db.init_db()
+    security_db.block_identity("dave", "authentication", "brute force", ttl_seconds=900)
+    assert security_db.is_identity_blocked("dave", "authentication") is True
+
+    removed = security_db.unblock_identity("dave", "authentication")
+    assert removed is True
+    assert security_db.is_identity_blocked("dave", "authentication") is False
+
+
+def test_unblock_identity_nothing_to_clear_returns_false(monkeypatch, temp_sqlite_path):
+    monkeypatch.setattr(security_db, "DB_PATH", temp_sqlite_path)
+    security_db.init_db()
+    assert security_db.unblock_identity("nobody", "authentication") is False
+
+
 def test_sandbox_roundtrip(monkeypatch, temp_sqlite_path):
     monkeypatch.setattr(security_db, "DB_PATH", temp_sqlite_path)
     security_db.init_db()

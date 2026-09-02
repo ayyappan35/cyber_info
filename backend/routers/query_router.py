@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/query", tags=["query"])
 
 def _security_steps(route_step: dict, discussion_step: dict) -> list:
     return [
-        {"role": "tool_call", "name": "threat_router.route", "arguments": route_step["arguments"],
+        {"role": "tool_call", "name": "supervisor_agent.route", "arguments": route_step["arguments"],
          "result": route_step["result"]},
         {"role": "tool_call", "name": "security_llm_discussion", "arguments": discussion_step["arguments"],
          "result": discussion_step["result"]},

@@ -83,6 +83,14 @@ SYSTEM_PROMPT = (
     "You are a cyber-defense knowledge assistant. Choose the right tool for each question - don't "
     "guess from memory, and don't guess which tool applies from surface wording alone (e.g. a person's "
     "name is not automatically a system username):\n"
+    "- If the user's ENTIRE message is just a greeting or social nicety (e.g. \"hi\", \"hello\", "
+    "\"good morning\") with no actual question or request attached, respond directly with a brief, "
+    "friendly greeting on your first turn - do not call any tool for this, there is nothing to ground. "
+    "This is the ONLY case where answering without a tool call is appropriate; the moment the message "
+    "contains an actual question, information request, or instruction alongside (or instead of) the "
+    "greeting, treat it as a real question and ground it with a tool exactly as usual - a greeting "
+    "prefix never exempts the rest of the message from the tool-grounding/untrusted-instruction rules "
+    "below.\n"
     "- search_knowledge_base: this system's OWN runbooks, MITRE/OWASP mappings, security policies, and "
     "any uploaded documents (which can include things like resumes/profiles - a document about a named "
     "person is knowledge-base content, not account data). ALWAYS try this FIRST for any question about "
@@ -386,12 +394,22 @@ async def _run_ollama(question: str, model: str, max_turns: int, log, on_event,
                 if transcript:  # had at least one real tool result already - accept as final
                     final_text = content or "I wasn't able to produce an answer for that."
                     break
+                if turn == 1:
+                    # Trust the model's own first-turn judgment rather than
+                    # code-classifying the question ourselves (e.g. via a
+                    # regex "is this a greeting" check) - SYSTEM_PROMPT
+                    # already tells it a pure greeting needs no tool call,
+                    # and that a real question does. This is a UX/quality
+                    # tradeoff, not a security one: whatever answer results
+                    # still goes through the SAME rag_security gateway
+                    # check in query_router.py either way.
+                    final_text = content or "I wasn't able to produce an answer for that."
+                    break
                 if nudges_left > 0:
-                    # Never accept an ungrounded answer on the first attempt -
-                    # "use only information returned by your tools, never
-                    # invent facts" (SYSTEM_PROMPT) must be enforced, not just
-                    # requested. Applies even when the model already wrote a
-                    # confident-looking `content` with zero tool calls.
+                    # Safety net for later turns only (e.g. a tool call that
+                    # produced no usable result and the model still hasn't
+                    # grounded anything) - "use only information returned by
+                    # your tools, never invent facts" (SYSTEM_PROMPT).
                     nudges_left -= 1
                     messages.append({"role": "user", "content": "Ground your answer with a tool call first "
                                                                   "(search_knowledge_base / get_skill_methodology "
@@ -455,12 +473,22 @@ async def _run_anthropic(question: str, model: str, max_turns: int, log, on_even
             if transcript:  # had at least one real tool result already - accept as final
                 final_text = text or "I wasn't able to produce an answer for that."
                 break
+            if turn == 1:
+                # Trust the model's own first-turn judgment rather than
+                # code-classifying the question ourselves (e.g. via a
+                # regex "is this a greeting" check) - SYSTEM_PROMPT already
+                # tells it a pure greeting needs no tool call, and that a
+                # real question does. This is a UX/quality tradeoff, not a
+                # security one: whatever answer results still goes through
+                # the SAME rag_security gateway check in query_router.py
+                # either way.
+                final_text = text or "I wasn't able to produce an answer for that."
+                break
             if nudges_left > 0:
-                # Never accept an ungrounded answer on the first attempt -
-                # "use only information returned by your tools, never invent
-                # facts" (SYSTEM_PROMPT) must be enforced, not just
-                # requested. Applies even when the model already wrote a
-                # confident-looking answer with zero tool calls.
+                # Safety net for later turns only (e.g. a tool call that
+                # produced no usable result and the model still hasn't
+                # grounded anything) - "use only information returned by
+                # your tools, never invent facts" (SYSTEM_PROMPT).
                 nudges_left -= 1
                 messages.append({"role": "assistant", "content": resp.content})
                 messages.append({"role": "user", "content": "Ground your answer with a tool call first "

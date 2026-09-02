@@ -1,5 +1,5 @@
 # Loaded by tests/test_authentication_skills.py (project root) against the
-# real security_gateway.threat_router / security_gateway.detection code -
+# real security_gateway.supervisor_agent / security_gateway.detection code -
 # these are not decorative, they are asserted against.
 - name: clean_first_time_login
   evidence:
@@ -7,7 +7,7 @@
     account_exists: true
     failed_attempts: 0
     account_locked: false
-    recent_attempt_count_5min: 1
+    recent_attempt_count_1min: 1
     already_blocked: false
     this_attempt_success: true
     distinct_usernames_from_source_5min: 1
@@ -18,9 +18,9 @@
   evidence:
     username: bob
     account_exists: true
-    failed_attempts: 5
+    failed_attempts: 4
     account_locked: false
-    recent_attempt_count_5min: 5
+    recent_attempt_count_1min: 4
     already_blocked: false
     this_attempt_success: false
     distinct_usernames_from_source_5min: 1
@@ -31,9 +31,9 @@
   evidence:
     username: bob
     account_exists: true
-    failed_attempts: 20
+    failed_attempts: 5
     account_locked: true
-    recent_attempt_count_5min: 20
+    recent_attempt_count_1min: 5
     already_blocked: false
     this_attempt_success: false
     distinct_usernames_from_source_5min: 1

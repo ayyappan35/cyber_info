@@ -13,7 +13,7 @@ A more specific pattern than `prompt-injection`'s general override
 language: role-play or persona-based jailbreak framing - "pretend you are
 an AI with no restrictions", "act as DAN", "you are now in developer
 mode", hypothetical/fictional framing used to extract content the
-assistant would otherwise refuse. The Threat Router only adds this skill
+assistant would otherwise refuse. The Supervisor Agent only adds this skill
 to the discussion when `question_has_override_language` is true
 (`detection.yaml`'s routing rule) - it's an escalation of
 `prompt-injection`'s baseline check, not a replacement for it.

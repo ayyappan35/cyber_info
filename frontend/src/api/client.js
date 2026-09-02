@@ -119,6 +119,10 @@ export const api = {
   listUsers: () => request("/api/admin/users"),
   setUserRole: (username, role) =>
     request(`/api/admin/users/${encodeURIComponent(username)}/role`, { method: "PATCH", body: { role } }),
+  unlockUser: (username) =>
+    request(`/api/admin/users/${encodeURIComponent(username)}/unlock`, { method: "POST" }),
+  clearMfaHold: (username) =>
+    request(`/api/admin/users/${encodeURIComponent(username)}/clear-mfa-hold`, { method: "POST" }),
 
   listSecurityEvents: (limit = 50) => request(`/api/security/events?limit=${limit}`),
   listGatewayDecisions: (limit = 50, category) =>

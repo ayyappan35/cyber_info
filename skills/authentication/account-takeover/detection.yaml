@@ -7,7 +7,7 @@ signals:
   - id: failed_attempts
     type: integer
     description: Failed attempts recorded against this account before this successful attempt
-  - id: recent_attempt_count_5min
+  - id: recent_attempt_count_1min
     type: integer
 
 routing:

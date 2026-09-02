@@ -41,6 +41,12 @@ def test_build_prompt_no_tools_available():
     assert "none available for this category" in system
 
 
+def test_build_prompt_instructs_matched_skill_ids():
+    system, user = llm_discussion._build_prompt("authentication", [_fake_skill()], {}, [], [])
+    assert "matched_skill_ids" in system
+    assert "brute-force" in system  # the skill_names list quoted into the instruction
+
+
 async def test_discuss_dispatches_to_ollama(monkeypatch):
     _set_provider_settings(monkeypatch, llm_provider="ollama", ollama_model="llama3.2:3b")
 

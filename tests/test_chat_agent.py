@@ -194,3 +194,114 @@ async def test_run_chat_agent_unknown_provider_raises(monkeypatch):
 
     with pytest.raises(NotImplementedError):
         await chat_agent.run_chat_agent("hi")
+
+
+# --- turn-1 no-tool-call acceptance (2026-09-02) --------------------------
+# Real behavior change: the model's own FIRST-turn judgment (per
+# SYSTEM_PROMPT's greeting instruction) is now trusted directly rather
+# than forcing a "ground your answer with a tool call" retry - no code-
+# level classification (e.g. a regex "is this a greeting" check) of the
+# question happens anywhere in this module. These tests exercise the
+# real provider-loop mechanics (not the dispatch-level mocking above) to
+# prove exactly one model call happens for a plain greeting-shaped
+# no-tool answer, and that a real multi-turn tool-using flow is
+# unaffected.
+
+class _FakeOllamaResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._payload
+
+
+class _FakeOllamaClient:
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.call_count = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, json):
+        self.call_count += 1
+        return _FakeOllamaResponse(self._responses.pop(0))
+
+
+async def test_run_ollama_accepts_turn_one_no_tool_answer_without_nudging(monkeypatch):
+    import httpx
+    fake_client = _FakeOllamaClient([
+        {"message": {"role": "assistant", "content": "Hello! How can I help you today?", "tool_calls": None}},
+    ])
+    monkeypatch.setattr(httpx, "AsyncClient", lambda timeout=None: fake_client)
+
+    result = await chat_agent._run_ollama("hi", "llama3.2:3b", 4, print, None, [], {})
+    assert result["answer"] == "Hello! How can I help you today?"
+    assert fake_client.call_count == 1  # accepted immediately - no forced grounding retry
+
+
+async def test_run_ollama_multiturn_tool_flow_still_works(monkeypatch):
+    import httpx
+    fake_client = _FakeOllamaClient([
+        {"message": {"role": "assistant", "content": "", "tool_calls": [
+            {"function": {"name": "search_knowledge_base", "arguments": {"query": "brute force"}}},
+        ]}},
+        {"message": {"role": "assistant", "content": "Brute force is repeated login attempts.",
+                      "tool_calls": None}},
+    ])
+    monkeypatch.setattr(httpx, "AsyncClient", lambda timeout=None: fake_client)
+    tool_funcs = {"search_knowledge_base": lambda query, category_filter=None:
+                  {"results": [{"content": "Brute force runbook text", "source": "runbook.md"}]}}
+
+    result = await chat_agent._run_ollama("what is brute force?", "llama3.2:3b", 4, print, None,
+                                           [{"name": "search_knowledge_base", "description": "d",
+                                             "parameters": {"type": "object", "properties": {}}}],
+                                           tool_funcs)
+    assert result["answer"] == "Brute force is repeated login attempts."
+    assert result["sources"] == ["runbook.md"]
+    assert fake_client.call_count == 2
+
+
+class _FakeTextBlock:
+    type = "text"
+
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeAnthropicResponse:
+    def __init__(self, content):
+        self.content = content
+
+
+class _FakeAnthropicMessages:
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.call_count = 0
+
+    async def create(self, **kwargs):
+        self.call_count += 1
+        return self._responses.pop(0)
+
+
+class _FakeAnthropicClient:
+    def __init__(self, responses):
+        self.messages = _FakeAnthropicMessages(responses)
+
+
+async def test_run_anthropic_accepts_turn_one_no_tool_answer_without_nudging(monkeypatch):
+    fake_client = _FakeAnthropicClient([_FakeAnthropicResponse([_FakeTextBlock("Hello! How can I help you today?")])])
+    monkeypatch.setattr(chat_agent, "get_settings",
+                         lambda: config.Settings(anthropic_api_key="sk-test"))
+    import anthropic
+    monkeypatch.setattr(anthropic, "AsyncAnthropic", lambda api_key=None: fake_client)
+
+    result = await chat_agent._run_anthropic("hi", "claude-sonnet-5", 4, print, None, [], {})
+    assert result["answer"] == "Hello! How can I help you today?"
+    assert fake_client.messages.call_count == 1  # accepted immediately - no forced grounding retry

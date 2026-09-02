@@ -35,6 +35,7 @@ class UserOut(BaseModel):
     email: Optional[str] = None
     role: str
     locked: bool
+    mfa_hold: bool
     created_at: str
 
 

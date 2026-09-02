@@ -21,7 +21,7 @@ governance failure this system had, until this skill closed it.
 
 # How the agent should investigate
 
-The Threat Router adds this skill whenever `context_contains_pii` is
+The Supervisor Agent adds this skill whenever `context_contains_pii` is
 true (deterministic regex evidence over the retrieved context, computed
 in `gateway.py::gather_chat_evidence` - phone number and email patterns
 today; see "what security boundaries apply" for what's NOT covered yet).

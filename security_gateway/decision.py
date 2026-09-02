@@ -24,3 +24,19 @@ class SecurityDecision(BaseModel):
     # actual catalog in gateway.py, not here - an invalid/hallucinated
     # name is dropped there rather than failing the whole decision.
     required_tools: List[str] = Field(default_factory=list)
+    # Which of the skills given in this prompt actually explain this
+    # verdict - the Supervisor Agent's "Select/Add Relevant Skills"
+    # behavior, reported by the model AFTER reasoning rather than
+    # pre-filtered before it. gateway.py feeds EVERY skill in the
+    # request's taxonomy scope into the prompt unconditionally regardless
+    # of this field (security_gateway/supervisor_agent.py::all_skills_for());
+    # this only narrows what gets RECORDED as relevant (skill_ids, the
+    # skill used for policy.py's per-skill response.yaml override lookup)
+    # - it never narrows what gets REASONED about or ENFORCED. Floor/
+    # ceiling in gateway.py still evaluate every offered skill
+    # unconditionally, regardless of what's reported here (CLAUDE.md
+    # section 8 - the LLM can shape what's recorded, never what's
+    # enforced). Validated against the actual skill_ids offered in
+    # gateway.py, not here - a hallucinated name is dropped there rather
+    # than failing the whole decision, same as required_tools.
+    matched_skill_ids: List[str] = Field(default_factory=list)

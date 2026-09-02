@@ -7,7 +7,7 @@ signals:
     description: Distinct usernames attempted from this request's source IP in the trailing 5 minutes (redis_tool)
   - id: failed_attempts
     type: integer
-  - id: recent_attempt_count_5min
+  - id: recent_attempt_count_1min
     type: integer
   - id: this_attempt_success
     type: boolean

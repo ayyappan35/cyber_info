@@ -1,10 +1,10 @@
 """Loads skills/rag/rag-poisoning/tests/fixtures.yaml and asserts it
-against the real threat_router.route_chat/detection code."""
+against the real supervisor_agent.route_chat/detection code."""
 import os
 
 import yaml
 
-from security_gateway import detection, threat_router
+from security_gateway import detection, supervisor_agent
 
 _FIXTURES_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -20,7 +20,7 @@ def _load_fixtures():
 def test_rag_poisoning_fixtures():
     for case in _load_fixtures():
         evidence = case["evidence"]
-        selected = threat_router.route_chat(evidence)
+        selected = supervisor_agent.route_chat(evidence)
         by_category = {}
         for cat, sid in selected:
             by_category.setdefault(cat, []).append(sid)

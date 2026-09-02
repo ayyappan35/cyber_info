@@ -11,7 +11,7 @@ implementation: security_gateway/gateway.py, backend/routers/query_router.py
 
 The baseline check on every chat question (`default: true` in
 `detection.yaml` - always included in the Security LLM Discussion
-alongside whatever else the Threat Router selects). Covers attempts in
+alongside whatever else the Supervisor Agent selects). Covers attempts in
 the user's OWN message to override system instructions, change the
 assistant's role, or make it ignore its cyber-defense-assistant framing -
 distinct from `jailbreak` (role-play/persona-based bypass patterns

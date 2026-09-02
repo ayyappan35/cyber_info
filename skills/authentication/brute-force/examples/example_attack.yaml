@@ -2,13 +2,13 @@
 # SKILL.md discussions and as a reference fixture for
 # tests/test_authentication_skills.py (project root) - not executable on
 # its own.
-scenario: "25 failed password guesses against 'admin' in under 3 minutes, same source"
+scenario: "8 failed password guesses against 'admin' in under 1 minute, same source"
 evidence:
   username: admin
   account_exists: true
-  failed_attempts: 25
+  failed_attempts: 8
   account_locked: true
-  recent_attempt_count_5min: 25
+  recent_attempt_count_1min: 8
   already_blocked: false
   this_attempt_success: false
 expected:

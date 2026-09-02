@@ -52,7 +52,7 @@ def record_attempt(identity: str) -> None:
     _attempts[identity].append(time.time())
 
 
-def get_attempt_count(identity: str, window_seconds: int = 300) -> int:
+def get_attempt_count(identity: str, window_seconds: int = 60) -> int:
     now = time.time()
     dq = _attempts[identity]
     while dq and now - dq[0] > window_seconds:
@@ -76,6 +76,40 @@ def record_username_attempt(source_ip: str, username: str) -> None:
 def get_distinct_usernames(source_ip: str, window_seconds: int = 300) -> int:
     now = time.time()
     dq = _username_attempts[source_ip]
+    while dq and now - dq[0][0] > window_seconds:
+        dq.popleft()
+    return len({u for _ts, u in dq})
+
+
+# --- per-source, per-password tracking (password-spraying detection) -----
+# Same in-process, single-worker constraint as the trackers above. Keyed
+# by (source_ip, password_hash) -> deque of (timestamp, username), so
+# skills/authentication/password-spraying's "same password tried across
+# many distinct accounts" signal can be computed - distinct from
+# get_distinct_usernames above, which counts distinct accounts regardless
+# of whether they share a password value.
+#
+# password_hash is a plain SHA-256 of the submitted password, computed
+# once in gateway.py::gather_authentication_evidence and passed in here -
+# a same-value CORRELATION key only ("does this attempt's password match
+# a prior attempt's"), never a security hash and never the raw password
+# itself. This is still a real, honest tradeoff worth stating plainly:
+# an unsalted hash of a COMMON password (exactly what spraying uses) is
+# rainbow-table-reversible by anyone who can read this in-process/
+# SQLite-fallback state - the same ephemeral, admin-only-visible,
+# window-evicted store brute-force/credential-stuffing's trackers already
+# are (never persisted long-term, never exposed via any API response).
+# Storing the raw password would be strictly worse for no real gain here.
+_password_spray_attempts = defaultdict(deque)
+
+
+def record_password_attempt(source_ip: str, password_hash: str, username: str) -> None:
+    _password_spray_attempts[(source_ip, password_hash)].append((time.time(), username))
+
+
+def get_distinct_usernames_for_password(source_ip: str, password_hash: str, window_seconds: int = 300) -> int:
+    now = time.time()
+    dq = _password_spray_attempts[(source_ip, password_hash)]
     while dq and now - dq[0][0] > window_seconds:
         dq.popleft()
     return len({u for _ts, u in dq})
@@ -105,3 +139,17 @@ def is_blocked(identity: str, category: str) -> bool:
 
 def list_blocked() -> list:
     return security_db.list_blocked_identities()
+
+
+def unblock_identity(identity: str, category: str) -> bool:
+    """Admin-only early release, real in both backends - not just a
+    security_db-only clear, since Redis (when active) is the actual
+    enforcement path is_blocked() checks first. Returns True if the
+    identity was actually blocked for this category (False if there was
+    nothing to clear)."""
+    client = _get_client()
+    was_blocked = is_blocked(identity, category)
+    if client is not None:
+        client.delete(f"blocked:{category}:{identity}")
+    security_db.unblock_identity(identity, category)
+    return was_blocked

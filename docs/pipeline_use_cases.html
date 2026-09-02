@@ -84,7 +84,7 @@
   <p class="lede">
     Every request enters through <code>security_gateway/gateway.py::analyze()</code> with a fixed
     <code>request_category</code> and evidence the caller already computed (never the LLM's own claims).
-    The Threat Router picks which skill(s) under <code>skills/&lt;category&gt;/</code> apply, a Security LLM
+    The Supervisor Agent picks which skill(s) under <code>skills/&lt;category&gt;/</code> apply, a Security LLM
     Discussion reasons about the matched skills' guidance plus retrieved threat knowledge, and the final
     action is whatever the LLM proposed — <em>clamped</em> by <code>policies/security_gateway_policy.yaml</code>
     and any skill's deterministic floor/ceiling, neither of which the LLM can override.
@@ -92,7 +92,7 @@
 
   <div class="legend">
     <span><i class="dot" style="background:var(--accent)"></i>Evidence gathering</span>
-    <span><i class="dot" style="background:var(--accent2)"></i>Threat Router / skill selection</span>
+    <span><i class="dot" style="background:var(--accent2)"></i>Supervisor Agent / skill selection</span>
     <span><i class="dot" style="background:var(--teal)"></i>Threat-knowledge retrieval (RAG)</span>
     <span><i class="dot" style="background:#818cf8"></i>Security LLM Discussion</span>
     <span><i class="dot" style="background:var(--amber)"></i>Deterministic floor / policy clamp</span>
@@ -111,7 +111,7 @@
     </div>
     <div class="arrow">▼</div>
     <div class="stage routing">
-      <h4>2. Threat Router</h4>
+      <h4>2. Supervisor Agent</h4>
       <p><code>route_agents()</code> — <code>agents/tool-abuse</code> runs on every A2A message as the baseline check; <code>agents/privilege-escalation</code> is added only if the sender's role changed with no audited change event.</p>
     </div>
     <div class="arrow">▼</div>
@@ -224,7 +224,7 @@
     </div>
     <div class="arrow">▼</div>
     <div class="stage routing">
-      <h4>2. Threat Router</h4>
+      <h4>2. Supervisor Agent</h4>
       <p><code>route_chat()</code> — <code>llm/prompt-injection</code> and <code>rag/rag-poisoning</code> are the <b>default</b> skills, always included as a baseline on every message; <code>jailbreak</code>, <code>model-extraction</code>, <code>pii-exposure</code>, <code>external-api-abuse</code> are added only when their own specific pattern hits.</p>
     </div>
     <div class="arrow">▼</div>
@@ -330,7 +330,7 @@
 
   <div class="footer">
     Generated from the live behaviour of <code>security_gateway/gateway.py::analyze()</code>,
-    <code>threat_router.py</code>, <code>detection.py</code> and <code>policy.py</code> — evidence, routing and
+    <code>supervisor_agent.py</code>, <code>detection.py</code> and <code>policy.py</code> — evidence, routing and
     knowledge-retrieval results above were produced by running the real functions against these exact question
     strings, not hand-written. Decision/response text for the LLM Defence table reflects the expected outcome of
     the Security LLM Discussion node; the deterministic floor/routing columns are exact.

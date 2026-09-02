@@ -1,14 +1,30 @@
-"""Security LLM Discussion node: the architecture diagram's single
-reasoning step, fed the routed skill's methodology, gathered evidence, and
-grounding retrieved from the threat-knowledge base, and required to
-return a schema-validated SecurityDecision (security_gateway/decision.py)
-- never free text parsed after the fact.
+"""Security LLM node: the architecture diagram's single reasoning step,
+fed by the Supervisor Agent's three inputs (security_gateway/
+supervisor_agent.py) - Skills (every taxonomy skill's SKILL.md content
+for this request_category, unfiltered), Knowledge (grounding retrieved
+from the threat-knowledge base), and Security Context (the evidence
+already gathered for this request) - and required to return a
+schema-validated SecurityDecision (security_gateway/decision.py) - never
+free text parsed after the fact.
 
 No hardcoded "if attack_type == X: risk = Y" logic here (CLAUDE.md
-section 8) - the model reasons over the evidence and skill content; this
-module's job is only building that prompt, calling whichever provider
-config.py's LLM_PROVIDER selects with structured output enabled, and
-validating the response shape.
+section 8) - the model alone reasons over which skill(s) actually apply
+and what the verdict is; nothing upstream pre-filters. This module's job
+is only building that one prompt, calling whichever provider config.py's
+LLM_PROVIDER selects with structured output enabled, and validating the
+response shape. Downstream, gateway.py's Policy step (detection.py's
+floor/ceiling + policy.py's clamp) is the deterministic layer this
+decision can never bypass - floor/ceiling evaluate every skill offered
+here unconditionally, never gated by `matched_skill_ids` below.
+
+`SecurityDecision.matched_skill_ids` (2026-09-01) is how the Supervisor
+Agent's "Select/Add Relevant Skills" behavior actually shows up in the
+audit trail again: since every skill in scope is now always fed into
+this prompt (no upstream filtering), `gateway.py` needs the model to
+report back WHICH of them actually explain its verdict, or `skill_ids`/
+the per-skill `policy.py` response.yaml override lookup would otherwise
+default to a meaningless static "first skill in the category" - a real
+regression this field fixes.
 
 Two providers are actually implemented (not just declared in config.py):
 - ollama (default, local): Ollama's `format: "json"` mode.
@@ -42,6 +58,7 @@ _DECISION_TOOL_SCHEMA = {
             "threat_indicators": {"type": "array", "items": {"type": "string"}},
             "reasoning": {"type": "string"},
             "required_tools": {"type": "array", "items": {"type": "string"}},
+            "matched_skill_ids": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["action", "confidence", "reasoning"],
     },
@@ -59,7 +76,12 @@ def _build_prompt(category: str, skills: list, evidence: dict, retrieved_knowled
     """Returns (system_text, user_text) - kept as a plain pair rather than
     a provider-specific messages list, since Ollama and Anthropic structure
     the system prompt differently (Ollama: a role:"system" message in the
-    same list; Anthropic: a separate top-level `system` parameter)."""
+    same list; Anthropic: a separate top-level `system` parameter).
+
+    `skills` is the Supervisor Agent's Skills input - EVERY skill in this
+    request_category's taxonomy scope (supervisor_agent.py::all_skills_for()),
+    unfiltered; deciding which of them actually apply is this call's own
+    job, not something done upstream."""
     knowledge_block = "\n\n".join(
         f"- ({k['source']}) {k['content'][:500]}" for k in retrieved_knowledge
     ) or "(no relevant threat knowledge retrieved)"
@@ -71,15 +93,16 @@ def _build_prompt(category: str, skills: list, evidence: dict, retrieved_knowled
     tools_block = ", ".join(available_tools) or "(none available for this category)"
 
     system = (
-        "You are the Security LLM Discussion node of an AI cyber-defense gateway. "
-        "You will be given one or more security skills' methodologies (all relevant to this single "
-        "request - reason about ALL of them together, not just the first), live evidence about one "
-        "request, and grounding knowledge retrieved from a threat-intelligence knowledge base. "
-        "Reason about whether this request is malicious under ANY of the given skills, then respond "
-        "with ONLY a JSON object matching exactly this shape, no other text:\n"
+        "You are the Security LLM node of an AI cyber-defense gateway. "
+        "You will be given every security skill's methodology registered for this request's category "
+        "(decide for yourself which, if any, genuinely apply - do not assume all of them do), live "
+        "evidence about one request (the Security Context), and grounding knowledge retrieved from a "
+        "threat-intelligence knowledge base. Reason about whether this request is malicious under ANY "
+        "of the given skills, then respond with ONLY a JSON object matching exactly this shape, no "
+        "other text:\n"
         '{"action": "ALLOW"|"MITIGATE"|"BLOCK", "confidence": 0.0-1.0, '
         '"threat_indicators": ["short phrase", ...], "reasoning": "1-2 short sentences, plain language", '
-        '"required_tools": ["tool_name", ...]}\n\n'
+        '"required_tools": ["tool_name", ...], "matched_skill_ids": ["skill_id", ...]}\n\n'
         "ALLOW = no real threat signal under any skill. MITIGATE = suspicious but not severe/certain "
         "enough to fully deny. BLOCK = clear, high-confidence malicious pattern under at least one "
         "skill. Base your action and confidence only on the evidence and skill guidance given - do "
@@ -92,11 +115,18 @@ def _build_prompt(category: str, skills: list, evidence: dict, retrieved_knowled
         f"required_tools: propose ZERO OR MORE tool NAMES ONLY (no arguments - those are filled in "
         f"deterministically by the gateway, never by you) from this exact list, only if this specific "
         f"request genuinely calls for that remediation/investigation step: {tools_block}. An ALLOW "
-        "decision should normally propose no tools. Never propose a tool not in this list."
+        "decision should normally propose no tools. Never propose a tool not in this list.\n\n"
+        f"matched_skill_ids: from this exact list of skill_ids you were given - {skill_names} - name "
+        f"ONLY the ones that specifically explain your action/reasoning for THIS request, the ones a "
+        f"human reviewer would point to as 'this is why'. Most requests genuinely match at most one or "
+        f"two of the skills given to you, not all of them - do not list a skill just because its "
+        f"methodology was included above. Leave empty only for a genuinely clean ALLOW with nothing "
+        f"specific to point to. Never list a skill_id not in that exact list."
     )
     user = (
-        f"## Skills relevant to this request: {skill_names} (request category: {category})\n\n{skills_block}\n\n"
-        f"## Evidence for this request\n{json.dumps(evidence, indent=2, default=str)}\n\n"
+        f"## Skills registered for this request's category: {skill_names} (request category: {category})\n\n"
+        f"{skills_block}\n\n"
+        f"## Evidence for this request (Security Context)\n{json.dumps(evidence, indent=2, default=str)}\n\n"
         f"## Retrieved threat knowledge\n{knowledge_block}\n\n"
         "Respond with the JSON object now."
     )

@@ -15,7 +15,7 @@ SKILLS_DIR = os.path.join(_PROJECT_ROOT, "skills")
 # specific/rare pattern first, `default: true` skill last - detection.py
 # checks routing rules in this order and falls back to the default).
 CATEGORY_SKILLS = {
-    "authentication": ["credential-stuffing", "account-takeover", "brute-force"],
+    "authentication": ["credential-stuffing", "account-takeover", "brute-force", "password-spraying"],
     "llm": ["jailbreak", "model-extraction", "prompt-injection"],
     "rag": ["pii-exposure", "external-api-abuse", "retrieval-manipulation", "rag-poisoning"],
     "files": ["archive-bomb", "malicious-docx", "malicious-pdf"],

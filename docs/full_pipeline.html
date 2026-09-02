@@ -102,7 +102,7 @@
   <p class="sub">Every request — login, chat, upload, agent-to-agent message — start to end, with every skill and tool it can touch.</p>
   <p class="lede">
     Grounded entirely in <code>README.md</code> and the real gateway code (<code>security_gateway/gateway.py::analyze()</code>).
-    One orchestrator handles all four entry points: the Threat Router picks a category-specific skill, a real LLM
+    One orchestrator handles all four entry points: the Supervisor Agent picks a category-specific skill, a real LLM
     (Ollama or Claude) reasons about it grounded in retrieved threat knowledge, and a deterministic policy layer —
     never the LLM — decides what's actually enforced.
   </p>
@@ -110,7 +110,7 @@
   <div class="legend">
     <span><i class="dot" style="background:var(--pink)"></i>UI / API entry</span>
     <span><i class="dot" style="background:var(--accent)"></i>Evidence gathering</span>
-    <span><i class="dot" style="background:var(--accent2)"></i>Threat Router / skills</span>
+    <span><i class="dot" style="background:var(--accent2)"></i>Supervisor Agent / skills</span>
     <span><i class="dot" style="background:var(--teal)"></i>Knowledge retrieval (RAG)</span>
     <span><i class="dot" style="background:#818cf8"></i>Security LLM Discussion</span>
     <span><i class="dot" style="background:var(--amber)"></i>Deterministic floor/ceiling + policy clamp</span>
@@ -158,8 +158,8 @@
     </div>
     <div class="arrow">▼</div>
     <div class="stage routing">
-      <h4>2. AI Security Gateway → Threat Router</h4>
-      <p><code>gateway.py::analyze(request_category, identity, evidence)</code> → <code>threat_router.py</code> dispatches to the category's skill(s) under <code>skills/&lt;category&gt;/</code>. A single request can match more than one skill at once — the router selects every skill that applies, and one LLM call reasons about all of them together.</p>
+      <h4>2. AI Security Gateway → Supervisor Agent</h4>
+      <p><code>gateway.py::analyze(request_category, identity, evidence)</code> → <code>supervisor_agent.py</code> dispatches to the category's skill(s) under <code>skills/&lt;category&gt;/</code>. A single request can match more than one skill at once — the router selects every skill that applies, and one LLM call reasons about all of them together.</p>
     </div>
     <div class="arrow">▼</div>
     <div class="stage knowledge">
@@ -195,7 +195,7 @@
 
   <!-- ============ SKILLS TAXONOMY ============ -->
   <h2>Which skill — the full taxonomy</h2>
-  <p class="lede">5 categories, ~15 skills, each independently routed by <code>threat_router.py</code>. <span class="tag def">default</span> skills always run as the category's baseline; <span class="tag unw">unwired</span> means no live enforcement path yet.</p>
+  <p class="lede">5 categories, ~15 skills, each independently routed by <code>supervisor_agent.py</code>. <span class="tag def">default</span> skills always run as the category's baseline; <span class="tag unw">unwired</span> means no live enforcement path yet.</p>
   <div class="catgrid">
     <div class="catcol">
       <div class="hd">authentication</div>
@@ -270,7 +270,7 @@
 
   <div class="steps">
     <div class="step"><h5><code>backend/routers/query_router.py</code></h5><p>Runs the chat agent's tool-use loop first (<code>search_knowledge_base</code> / <code>get_skill_methodology</code> / <code>search_external_web</code>), then builds evidence from the question + everything actually retrieved (<code>gateway.gather_chat_evidence</code>).</p></div>
-    <div class="step"><h5><code>threat_router.py :: route_chat(evidence)</code></h5><p>Matches <code>skills/llm/jailbreak</code> (override-language rule fired) + <code>skills/llm/prompt-injection</code> (default) + <code>skills/rag/rag-poisoning</code> (default) → <code>selected = [jailbreak, prompt-injection, rag-poisoning]</code>.</p></div>
+    <div class="step"><h5><code>supervisor_agent.py :: route_chat(evidence)</code></h5><p>Matches <code>skills/llm/jailbreak</code> (override-language rule fired) + <code>skills/llm/prompt-injection</code> (default) + <code>skills/rag/rag-poisoning</code> (default) → <code>selected = [jailbreak, prompt-injection, rag-poisoning]</code>.</p></div>
     <div class="step"><h5>One LLM call, fed two things together</h5><p>(a) all 3 matched skills' <code>SKILL.md</code> methodology, (b) top-4 reranked knowledge chunks for those skill ids. <code>llm_discussion.py</code> builds one prompt from both and calls Claude/Ollama with structured output forced.</p></div>
     <div class="step"><h5><code>detection.py :: apply_floor()</code></h5><p><code>prompt-injection</code>'s floor: override-language flag true → minimum <code>MITIGATE</code>, evaluated independently of what the LLM said. <code>enforce_floor(BLOCK, MITIGATE)</code> stays <code>BLOCK</code> — the LLM's own verdict already exceeded the floor.</p></div>
     <div class="step"><h5><code>policy.py :: clamp_action("rag_security", "BLOCK", 0.97)</code></h5><p>BLOCK enabled for rag_security? yes. 0.97 ≥ min_confidence_to_enforce? yes. Action stays BLOCK → effect <code>refuse_and_sandbox</code>.</p></div>

@@ -1,12 +1,12 @@
 """Loads skills/authentication/brute-force/tests/fixtures.yaml and
 skills/authentication/brute-force/examples/example_attack.yaml and
-asserts them against the real threat_router/detection code - these
+asserts them against the real supervisor_agent/detection code - these
 fixture files are not decorative documentation, they are executed."""
 import os
 
 import yaml
 
-from security_gateway import detection, threat_router
+from security_gateway import detection, supervisor_agent
 
 _SKILL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -22,7 +22,7 @@ def _load_fixtures():
 def test_brute_force_fixtures():
     for case in _load_fixtures():
         evidence = case["evidence"]
-        skill_id = threat_router.route_authentication(evidence)
+        skill_id = supervisor_agent.route_authentication(evidence)
         assert skill_id == case["expected_skill"], case["name"]
 
         floor_action, _reason = detection.apply_floor("authentication", skill_id, evidence)
@@ -34,7 +34,7 @@ def test_brute_force_example_attack():
         example = yaml.safe_load(f)
 
     evidence = example["evidence"]
-    skill_id = threat_router.route_authentication(evidence)
+    skill_id = supervisor_agent.route_authentication(evidence)
     assert skill_id == example["expected"]["routed_skill"]
 
     floor_action, _reason = detection.apply_floor("authentication", skill_id, evidence)

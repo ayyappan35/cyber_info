@@ -1,6 +1,6 @@
 import {
   Activity, AlertTriangle, Archive, Ban, Check, CheckCircle2, ChevronRight, Clock, Database,
-  FileArchive, FileCode2, FileSpreadsheet, FileText, Lock, Plus, ShieldAlert, ShieldCheck,
+  FileArchive, FileCode2, FileSpreadsheet, FileText, Lock, LockOpen, Plus, ShieldAlert, ShieldCheck,
   UploadCloud, Users as UsersIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -308,6 +308,32 @@ function UsersTab() {
     }
   }
 
+  async function handleUnlock(user) {
+    setUpdating(user.username);
+    setError("");
+    try {
+      const updated = await api.unlockUser(user.username);
+      setUsers((prev) => prev.map((u) => (u.username === updated.username ? updated : u)));
+    } catch (err) {
+      setError(err.message || "Failed to unlock account");
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function handleClearMfaHold(user) {
+    setUpdating(user.username);
+    setError("");
+    try {
+      const updated = await api.clearMfaHold(user.username);
+      setUsers((prev) => prev.map((u) => (u.username === updated.username ? updated : u)));
+    } catch (err) {
+      setError(err.message || "Failed to clear security hold");
+    } finally {
+      setUpdating(null);
+    }
+  }
+
   return (
     <div>
       <p className="mb-6 flex items-center gap-1.5 text-sm leading-relaxed text-ink-dim">
@@ -330,6 +356,7 @@ function UsersTab() {
             const isSelf = user.username === currentUsername;
             const initials = user.username.slice(0, 2).toUpperCase();
             const isLocked = user.locked === 1 || user.locked === true;
+            const hasMfaHold = user.mfa_hold === 1 || user.mfa_hold === true;
             return (
               <div
                 key={user.username}
@@ -346,6 +373,9 @@ function UsersTab() {
                   <div className="flex items-center gap-1.5">
                     <span className="truncate font-medium text-ink">{user.username}</span>
                     {isLocked && <Lock size={11} className="shrink-0 text-red-400" aria-label="Locked account" />}
+                    {hasMfaHold && (
+                      <ShieldAlert size={11} className="shrink-0 text-amber-400" aria-label="Security hold (require_mfa)" />
+                    )}
                     <span
                       className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                         user.role === "admin"
@@ -358,6 +388,30 @@ function UsersTab() {
                   </div>
                   <div className="truncate text-xs text-ink-dim">{user.email || "no email"}</div>
                 </div>
+                {isLocked && (
+                  <button
+                    type="button"
+                    onClick={() => handleUnlock(user)}
+                    disabled={updating === user.username}
+                    title="Unlock account (clears both the account lock and any active gateway block)"
+                    className="flex shrink-0 items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    <LockOpen size={12} />
+                    Unlock
+                  </button>
+                )}
+                {hasMfaHold && (
+                  <button
+                    type="button"
+                    onClick={() => handleClearMfaHold(user)}
+                    disabled={updating === user.username}
+                    title="Clear security hold (require_mfa) - lets this account log in again without a real second factor, since this build has none"
+                    className="flex shrink-0 items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    <ShieldAlert size={12} />
+                    Clear Hold
+                  </button>
+                )}
                 <select
                   value={user.role}
                   disabled={isSelf || updating === user.username}

@@ -6,9 +6,9 @@ signals:
   - id: failed_attempts
     type: integer
     description: Consecutive failed attempts on this account (webapp_db.py)
-  - id: recent_attempt_count_5min
+  - id: recent_attempt_count_1min
     type: integer
-    description: Attempts by this username in the trailing 5 minutes (redis_tool)
+    description: Attempts by this username in the trailing 1 minute (redis_tool) - tightened from a 5-minute/20-attempt window on 2026-09-01, see reason below.
   - id: already_blocked
     type: boolean
   - id: this_attempt_success
@@ -20,8 +20,8 @@ signals:
 # are checked and don't match.
 
 floor:
-  field: recent_attempt_count_5min
+  field: recent_attempt_count_1min
   op: gte
-  value: 20
+  value: 5
   minimum_action: BLOCK
-  reason: "20+ attempts against one account in 5 minutes is unambiguous - never left to model judgment alone."
+  reason: "5+ attempts against one account in a single minute is unambiguous - never left to model judgment alone. Tightened 2026-09-01 from 20 attempts/5 minutes: that window let an automated brute-force script run for minutes before the deterministic floor caught it: 5 attempts/1 minute catches the same unambiguous pattern much sooner, without narrowing so far that normal human retry behavior (a couple of mistyped passwords) risks tripping it."

@@ -53,7 +53,7 @@ def init_db():
             reasoning TEXT,
             enforced INTEGER NOT NULL DEFAULT 0,
             sandbox_id TEXT,
-            skill_ids TEXT                 -- JSON list of taxonomy skill_ids the Threat Router selected (skills/<category>/<skill-id>/)
+            skill_ids TEXT                 -- JSON list of taxonomy skill_ids the Supervisor Agent selected (skills/<category>/<skill-id>/)
         );
 
         CREATE TABLE IF NOT EXISTS blocked_identities (
@@ -264,6 +264,20 @@ def list_blocked_identities():
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def unblock_identity(identity: str, category: str) -> bool:
+    """Admin-only early release of a block_identity() TTL - otherwise this
+    only ever expires on its own. Returns True if a row was actually
+    removed (False if nothing was blocked for this identity/category)."""
+    conn = _conn()
+    cur = conn.execute(
+        "DELETE FROM blocked_identities WHERE identity = ? AND category = ?", (identity, category),
+    )
+    conn.commit()
+    removed = cur.rowcount > 0
+    conn.close()
+    return removed
 
 
 # --- Sandbox (quarantine) store ------------------------------------------

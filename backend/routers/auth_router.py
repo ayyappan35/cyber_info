@@ -1,12 +1,14 @@
-"""Login/signup/logout. The pass/fail decision itself stays plain
-deterministic code (bcrypt compare, JWT sign/verify, backend/auth.py +
-webapp_db.py) - authentication must never be something an LLM "decides".
-What the Authentication branch of the security gateway adds is a live
-check around every login attempt, routed by security_gateway/
-threat_router.py to whichever of skills/authentication/{brute-force,
-credential-stuffing,account-takeover}/ applies - it can BLOCK further
-attempts from an identity already showing an attack pattern, on top of
-webapp_db's own LOCKOUT_THRESHOLD account lock.
+"""Login/signup/logout - agentic_system branch.
+
+Password correctness ITSELF is still plain bcrypt (there's no coherent
+"agentic" substitute for a one-way cryptographic hash comparison - an
+LLM cannot verify a bcrypt hash through reasoning, it doesn't have the
+pre-image). Everything downstream of that comparison IS agentic now: the
+Security LLM's verdict (security_gateway/gateway.py::analyze(),
+unconstrained by floor/ceiling/policy-clamp on this branch) is what
+decides whether the account gets locked (webapp_db.py::lock_account()),
+replacing main's fixed LOCKOUT_THRESHOLD=3 rule. See
+docs/AGENTIC_SYSTEM_EXPERIMENT.md.
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -72,16 +74,29 @@ async def login(body: LoginRequest, request: Request):
                              "This account is on hold pending security review - contact an admin.")
 
     success = False
-    if user is not None and not locked and auth.verify_password(body.password, user["password_hash"]):
-        success = True
+    if user is not None and not locked:
+        success = auth.verify_password(body.password, user["password_hash"])
+    elif user is None:
+        # Burn the same bcrypt work a real check would, even though there's
+        # no account to check against - both this case and a wrong
+        # password on a real account return the identical "Invalid
+        # username or password" text below, and now take the same amount
+        # of time too, so response timing can't be used to enumerate
+        # which usernames are registered. See auth.py::DUMMY_PASSWORD_HASH.
+        auth.verify_password(body.password, auth.DUMMY_PASSWORD_HASH)
     evidence = gateway.gather_authentication_evidence(
         username=username, source_ip=source_ip, account_exists=account_exists,
         failed_attempts=(user["failed_attempts"] if user else 0), locked=locked,
-        this_attempt_success=success,
+        this_attempt_success=success, password=body.password,
     )
     result = await gateway.analyze("authentication", username, evidence, log=request.app.state.log)
 
     if result.action == "BLOCK":
+        # agentic_system branch: the account-level lock is now driven by
+        # the Security LLM's own verdict, not a fixed LOCKOUT_THRESHOLD -
+        # see webapp_db.py::lock_account()'s docstring.
+        if user is not None:
+            db.lock_account(username)
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
                              "Login blocked by the security gateway - suspicious attempt pattern detected.")
 
@@ -91,9 +106,7 @@ async def login(body: LoginRequest, request: Request):
                              else "Invalid username or password")
 
     if not success:
-        state = db.record_failed_login(username)
-        if state and state["locked"]:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Account locked due to too many failed attempts")
+        db.record_failed_login(username)  # evidence only now - never auto-locks, see webapp_db.py
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid username or password")
 
     db.reset_failed_login(username)

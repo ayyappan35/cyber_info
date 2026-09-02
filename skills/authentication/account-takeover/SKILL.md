@@ -20,7 +20,7 @@ being used here for the first time.
 
 # How the agent should investigate
 
-The Threat Router selects this skill (over brute-force) specifically when
+The Supervisor Agent selects this skill (over brute-force) specifically when
 `this_attempt_success` is true AND `failed_attempts` (before this
 successful attempt reset it) was already elevated
 (`detection.yaml`'s routing rule). The discussion should reason about

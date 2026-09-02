@@ -13,22 +13,22 @@ This is the default authentication skill: repeated failed attempts
 concentrated against ONE account, from ONE source. `detection.yaml`'s
 `routing` rule for `credential-stuffing` (many distinct accounts from one
 source) and `account-takeover` (a success that breaks an established
-suspicious pattern) are checked first by the Threat Router
-(`security_gateway/threat_router.py`); brute-force is what's left when
+suspicious pattern) are checked first by the Supervisor Agent
+(`security_gateway/supervisor_agent.py`); brute-force is what's left when
 neither of those more specific patterns match - marked `default: true`.
 
 # How the agent should investigate
 
 Evidence handed to the Security LLM Discussion node (see `detection.yaml`
 `signals`): this account's `failed_attempts` and `locked` state
-(`webapp_db.py`, real columns), `recent_attempt_count_5min` for this
+(`webapp_db.py`, real columns), `recent_attempt_count_1min` for this
 specific username, whether this identity is already block-listed, and
 whether *this* attempt succeeded. The model should distinguish a genuine
 attack pattern (many failures, tight timing) from normal human error
 (one or two mistyped passwords) - `detection.yaml`'s `floor` is a
-deterministic backstop for the unambiguous case (>=20 attempts in 5
-minutes), not a replacement for this judgment on the ambiguous middle
-ground.
+deterministic backstop for the unambiguous case (>=5 attempts in a single
+minute - tightened 2026-09-01 from >=20 in 5 minutes), not a replacement
+for this judgment on the ambiguous middle ground.
 
 # What evidence should be collected
 
@@ -37,7 +37,7 @@ knowledge: `search_threat_knowledge("brute force attack pattern")`.
 
 # What security boundaries apply
 
-- `detection.yaml`'s `floor` (`recent_attempt_count_5min >= 20 ->
+- `detection.yaml`'s `floor` (`recent_attempt_count_1min >= 5 ->
   minimum_action: BLOCK`) is enforced in `security_gateway/detection.py`
   BEFORE the LLM's own clamped action is compared - the LLM can propose a
   stronger action, never a weaker one once the floor is crossed.
@@ -48,12 +48,17 @@ knowledge: `search_threat_knowledge("brute force attack pattern")`.
 - `webapp_db.LOCKOUT_THRESHOLD`'s account-level lock (3 consecutive failed
   attempts - see knowledge/security_policies/account_lockout_policy.md) is
   a separate, always-on deterministic control, never weakened by this
-  skill - it can lock the ACCOUNT well before this skill's own 20-attempts-
-  in-5-minutes floor (below) is ever reached. Don't conflate the two: 3
-  failed attempts locks the account (can't log in at all, regardless of
-  what this discussion concludes); 20 attempts in 5 minutes is this
-  skill's own floor that forces a Redis/local IDENTITY block via the
-  gateway - a different mechanism entirely.
+  skill - it can lock the ACCOUNT well before this skill's own
+  5-attempts-in-1-minute floor (below) is ever reached (in fact
+  LOCKOUT_THRESHOLD=3 now fires strictly BEFORE this floor's threshold of
+  5 in the common case of one attempt per request). Don't conflate the
+  two: 3 failed attempts locks the account (can't log in at all,
+  regardless of what this discussion concludes); 5 attempts in 1 minute
+  is this skill's own floor that forces a Redis/local IDENTITY block via
+  the gateway - a different mechanism entirely, and the one that actually
+  matters for a distributed/scripted attack where each attempt targets a
+  *different* recently-created account (never tripping any one account's
+  LOCKOUT_THRESHOLD) but still hammers one identity's login endpoint.
 
 # How the result should be verified
 

@@ -13,7 +13,7 @@ Despite the name (matched to the architecture diagram's original
 "malicious_pdf" skill), this is the default/general document-injection
 check for every upload extension that doesn't have its own more
 specialized skill - `.pdf`, `.md`, `.txt`, `.xlsx` all fall through to
-this skill (`detection.yaml`'s `default: true`, the Threat Router's
+this skill (`detection.yaml`'s `default: true`, the Supervisor Agent's
 fallback once `.docx`/`.zip`'s own routing rules don't match); those two
 route to `malicious-docx`/`archive-bomb` instead, which handle their
 format-specific active-payload risks. Every uploaded document is checked

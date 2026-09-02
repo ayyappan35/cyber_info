@@ -21,6 +21,31 @@ def test_block_and_is_blocked(monkeypatch, temp_sqlite_path):
     assert any(b["identity"] == "eve" for b in redis_tool.list_blocked())
 
 
+def test_unblock_identity_clears_the_block(monkeypatch, temp_sqlite_path):
+    # Admin "unlock this user" action (backend/routers/admin_router.py) -
+    # a block otherwise only ever expires on its own TTL.
+    monkeypatch.setattr(security_db, "DB_PATH", temp_sqlite_path)
+    monkeypatch.setattr(redis_tool, "REDIS_URL", "")
+    monkeypatch.setattr(redis_tool, "_client", None)
+    security_db.init_db()
+
+    redis_tool.block_identity("frank", "authentication", "brute force pattern", ttl_seconds=900)
+    assert redis_tool.is_blocked("frank", "authentication") is True
+
+    removed = redis_tool.unblock_identity("frank", "authentication")
+    assert removed is True
+    assert redis_tool.is_blocked("frank", "authentication") is False
+
+
+def test_unblock_identity_nothing_blocked_returns_false(monkeypatch, temp_sqlite_path):
+    monkeypatch.setattr(security_db, "DB_PATH", temp_sqlite_path)
+    monkeypatch.setattr(redis_tool, "REDIS_URL", "")
+    monkeypatch.setattr(redis_tool, "_client", None)
+    security_db.init_db()
+
+    assert redis_tool.unblock_identity("nobody", "authentication") is False
+
+
 def test_attempt_count_sliding_window(monkeypatch):
     monkeypatch.setattr(redis_tool, "_attempts", {})
     import collections

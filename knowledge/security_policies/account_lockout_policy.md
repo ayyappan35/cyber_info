@@ -2,7 +2,7 @@
 
 ## Automatic lockout
 - Accounts automatically lock after 3 consecutive failed password attempts (backend/webapp_db.py's LOCKOUT_THRESHOLD). This is enforced by the auth system itself, not by the SOC agent, and applies regardless of what the Security LLM Discussion concludes.
-- This is a SEPARATE, lower threshold from the AI Security Gateway's own deterministic floor on skills/authentication/brute-force (20+ attempts in a 5-minute window forces a Redis/local identity BLOCK) - the account can already be locked well before that gateway-level floor is ever reached. Don't conflate the two: account lock = can't log in at all; gateway BLOCK = this identity is rate-limited/blocked from further attempts being evaluated.
+- This is a SEPARATE, lower threshold from the AI Security Gateway's own deterministic floor on skills/authentication/brute-force (5+ attempts against one account in a 1-minute window forces a Redis/local identity BLOCK - tightened 2026-09-01 from 20 attempts/5 minutes) - the account can already be locked well before that gateway-level floor is ever reached. Don't conflate the two: account lock = can't log in at all; gateway BLOCK = this identity is rate-limited/blocked from further attempts being evaluated.
 
 ## When the blue team should act manually before the automatic threshold
 - Session replay / hijacking (immediate, any single occurrence).

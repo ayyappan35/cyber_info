@@ -84,7 +84,7 @@
 <div class="wrap">
 
   <h1>System Architecture — Flowchart <span style="color:var(--muted); font-weight:400; font-size:0.7em;"></span></h1>
-  <p class="sub">One real branching diagram of the whole platform — UI, all 4 entry paths, the Threat Router's 5-category fan-out, the Security LLM Discussion, policy, the MCP tool catalog, and the loop back to the UI. Same content as README.md's architecture diagram, drawn as an actual flowchart rather than stacked cards.</p>
+  <p class="sub">One real branching diagram of the whole platform — UI, all 4 entry paths, the Supervisor Agent's 5-category fan-out, the Security LLM Discussion, policy, the MCP tool catalog, and the loop back to the UI. Same content as README.md's architecture diagram, drawn as an actual flowchart rather than stacked cards.</p>
 
   <div class="legend">
     <span><i class="dot" style="background:var(--accent)"></i>UI</span>
@@ -101,7 +101,7 @@
   <div class="diagram">
   <svg viewBox="0 0 1340 1480" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="svgTitle svgDesc">
     <title id="svgTitle">cyber_defence system architecture flowchart</title>
-    <desc id="svgDesc">Request flow from the UI through auth/entry gates, the AI Security Gateway, threat classification, RAG knowledge retrieval, the security LLM discussion, policy enforcement, MCP tool authorization, verification, and back to the UI. Every action, including BLOCK, passes through policy enforcement and tool authorization.</desc>
+    <desc id="svgDesc">Request flow from the UI through auth/entry gates, the AI Security Gateway, the Supervisor Agent gathering its category's full skill set with no filtering, RAG knowledge retrieval, the security LLM discussion (which alone decides skill relevance and the verdict together), policy enforcement, MCP tool authorization, verification, and back to the UI. Every action, including BLOCK, passes through policy enforcement and tool authorization.</desc>
     <defs>
       <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path>
@@ -116,12 +116,13 @@
     <path class="link" d="M560,76 V104 M155,104 H965 M155,104 V132 M425,104 V132 M695,104 V132 M965,104 V132" marker-end="url(#arrow)"></path>
     <!-- 4 entry paths -> Gateway -->
     <path class="link" d="M155,202 V228 M425,202 V228 M695,202 V228 M965,202 V228 M155,228 H965 M560,228 V254" marker-end="url(#arrow)"></path>
-    <!-- Gateway -> Threat Router -->
+    <!-- Gateway -> Supervisor Agent -->
     <path class="link" d="M560,310 V344" marker-end="url(#arrow)"></path>
-    <!-- Threat Router -> 5 categories -->
+    <!-- Supervisor Agent -> 5 categories' full skill sets (unconditional - no routing/filtering) -->
     <path class="link" d="M560,394 V418 M125,418 H995 M125,418 V444 M342.5,418 V444 M560,418 V444 M777.5,418 V444 M995,418 V444" marker-end="url(#arrow)"></path>
     <!-- 5 categories -> Knowledge -->
     <path class="link" d="M125,594 V618 M342.5,594 V618 M560,594 V618 M777.5,594 V618 M995,594 V618 M125,618 H995 M560,618 V644" marker-end="url(#arrow)"></path>
+    <text class="lbl" x="560" y="611" text-anchor="middle">↧ every skill above is always included, unconditionally — the Security LLM decides relevance</text>
     <!-- Knowledge -> LLM Discussion -->
     <path class="link" d="M560,704 V738" marker-end="url(#arrow)"></path>
     <!-- LLM Discussion -> 3 outcomes -->
@@ -163,28 +164,28 @@
     </div></foreignObject>
 
     <foreignObject x="420" y="344" width="280" height="50"><div class="node route" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Threat Router</div><div class="d"><code>threat_router.py</code> — dispatches to matching skill(s)</div>
+      <div class="t">Supervisor Agent</div><div class="d"><code>supervisor_agent.py::all_skills_for()</code> — full scope, no filtering</div>
     </div></foreignObject>
 
     <foreignObject x="30" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">authentication</div>
-      <ul><li>credential-stuffing</li><li>account-takeover</li><li class="def">brute-force · default</li></ul>
+      <ul><li>credential-stuffing</li><li>account-takeover</li><li>brute-force</li><li>password-spraying</li></ul>
     </div></foreignObject>
     <foreignObject x="247.5" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">llm</div>
-      <ul><li>jailbreak</li><li>model-extraction</li><li class="def">prompt-injection · default</li></ul>
+      <ul><li>jailbreak</li><li>model-extraction</li><li>prompt-injection</li></ul>
     </div></foreignObject>
     <foreignObject x="465" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">rag</div>
-      <ul><li>pii-exposure</li><li>external-api-abuse</li><li>retrieval-manipulation</li><li class="def">rag-poisoning · default</li></ul>
+      <ul><li>pii-exposure</li><li>external-api-abuse</li><li>retrieval-manipulation</li><li>rag-poisoning</li></ul>
     </div></foreignObject>
     <foreignObject x="682.5" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">files</div>
-      <ul><li>archive-bomb</li><li>malicious-docx</li><li class="def">malicious-pdf · default</li></ul>
+      <ul><li>archive-bomb</li><li>malicious-docx</li><li>malicious-pdf</li></ul>
     </div></foreignObject>
     <foreignObject x="900" y="444" width="190" height="150"><div class="node route cat" xmlns="http://www.w3.org/1999/xhtml">
       <div class="t">agents</div>
-      <ul><li class="def">tool-abuse · default</li><li>privilege-escalation</li><li class="unw">intent-drift · not yet enforced</li></ul>
+      <ul><li>tool-abuse</li><li>privilege-escalation</li><li class="unw">intent-drift · no floor/ceiling</li></ul>
     </div></foreignObject>
 
     <foreignObject x="330" y="644" width="460" height="60"><div class="node knowledge" xmlns="http://www.w3.org/1999/xhtml">
@@ -192,7 +193,7 @@
     </div></foreignObject>
 
     <foreignObject x="330" y="738" width="460" height="60"><div class="node llm" xmlns="http://www.w3.org/1999/xhtml">
-      <div class="t">Security LLM Discussion</div><div class="d">Ollama or Claude — returns action + confidence + reasoning + required_tools</div>
+      <div class="t">Security LLM Discussion</div><div class="d">Ollama or Claude — decides relevance AND verdict: action + confidence + reasoning + required_tools</div>
     </div></foreignObject>
 
     <foreignObject x="200" y="858" width="200" height="54"><div class="node allow" xmlns="http://www.w3.org/1999/xhtml">
@@ -234,17 +235,20 @@
 
   <div class="footer">
     Source: <code>README.md</code>'s architecture diagram, <code>security_gateway/gateway.py</code>,
-    <code>threat_router.py</code>, <code>mcp_gateway.py</code>. Same base palette as
+    <code>supervisor_agent.py</code>, <code>llm_discussion.py</code>, <code>decision.py</code>,
+    <code>mcp_gateway.py</code>. Same base palette as
     <code>docs/user_journey_login_to_logout.html</code>; the accent-colored loop (dashed, right margin) shows the
     same request cycle repeating for the next question — see <code>docs/live_test_results.html</code> for real, live
     outcomes flowing through this exact path.
     <ul class="changelog">
-      <li><b>Changed in:</b> filled in two placeholder <code>&lt;code&gt;</code> tags (UI node: <code>App.jsx</code>; Verification node: <code>siem_tool.py</code>) and rewrote the garbled MCP Tool Authorization Gateway description.</li>
+      <li><b>Changed in:</b> added <code>password-spraying</code> as a 4th <code>authentication</code> skill (2026-09-02) - a real, buildable signal (same submitted password hashed for correlation only, tried across distinct usernames from one source) that <code>credential-stuffing</code>'s own signal can't distinguish from itself. See <code>skills/authentication/password-spraying/SKILL.md</code>.</li>
+      <li>the category boxes no longer show a routed/default distinction - every skill listed is always fed into the Security LLM Discussion call, unconditionally (a new label under the category row says so explicitly); the Supervisor Agent node now reads <code>all_skills_for()</code> instead of describing a dispatch/candidate-offer step; the Security LLM Discussion node's description now says it decides relevance AND the verdict together. This replaces an earlier same-day version of this diagram that showed a dashed purple <code>additional_skills</code> feedback path - that merged-call mechanism was built, then removed in favor of this simpler "full scope, always" design. See <code>docs/architecture.md</code>'s "Supervisor Agent becomes pure orchestration" section.</li>
+      <li>filled in two placeholder <code>&lt;code&gt;</code> tags (UI node: <code>App.jsx</code>; Verification node: <code>siem_tool.py</code>) and rewrote the garbled MCP Tool Authorization Gateway description.</li>
       <li>Corrected the Upload entry path: the gateway check is active (two-stage: whole-file scan + per-chunk quarantine, re-enabled 2026-08-26, tested), not disabled as an earlier version claimed.</li>
-      <li>Flagged <code>intent-drift</code> under the <code>agents</code> category as listed but not yet enforced (no routing rule in <code>threat_router.py</code>).</li>
+      <li>Flagged <code>intent-drift</code> under the <code>agents</code> category as listed but not yet enforced (no routing rule in <code>supervisor_agent.py</code>).</li>
       <li>Approval Queue is now visually dashed/async (⏸) to distinguish it from the fully automated sandbox path; sandbox_tool's description now says explicitly its output is audit-only, not embedded in the response.</li>
       <li>Added SVG <code>&lt;title&gt;</code>/<code>&lt;desc&gt;</code> for screen readers, and a legend note clarifying that decision colors (green/amber/red on ALLOW/MITIGATE/BLOCK) are a reused risk-shorthand, not the same as the stage-color legend, with ✓/⚠/✕ marks added so the distinction doesn't rely on color alone.</li>
-      <li><b>Reverted:</b> an earlier draft claimed BLOCK bypasses Policy/MCP Tool Authorization, and that the Gateway/Agent-to-Agent paths have WAF/mTLS checks and the Threat Router fails closed on no routing match — none of that is true of this codebase (Policy runs for every action including BLOCK; no WAF or mTLS exists; every category has a default skill so routing always matches). Removed rather than left inaccurate.</li>
+      <li><b>Reverted:</b> an earlier draft claimed BLOCK bypasses Policy/MCP Tool Authorization, and that the Gateway/Agent-to-Agent paths have WAF/mTLS checks and the Supervisor Agent fails closed on no routing match — none of that is true of this codebase (Policy runs for every action including BLOCK; no WAF or mTLS exists; every category has a default skill so routing always matches). Removed rather than left inaccurate.</li>
     </ul>
   </div>
 

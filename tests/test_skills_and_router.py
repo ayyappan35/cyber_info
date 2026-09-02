@@ -1,6 +1,6 @@
 import pytest
 
-from security_gateway import detection, skills, threat_router
+from security_gateway import detection, skills, supervisor_agent
 
 
 def test_all_taxonomy_skills_load():
@@ -47,40 +47,40 @@ def test_unknown_skill_in_known_category_raises():
 
 
 def test_route_authentication_defaults_to_brute_force_on_no_signal():
-    assert threat_router.route_authentication({}) == "brute-force"
+    assert supervisor_agent.route_authentication({}) == "brute-force"
 
 
 def test_route_authentication_selects_credential_stuffing():
     evidence = {"distinct_usernames_from_source_5min": 5}
-    assert threat_router.route_authentication(evidence) == "credential-stuffing"
+    assert supervisor_agent.route_authentication(evidence) == "credential-stuffing"
 
 
 def test_route_authentication_selects_account_takeover():
     evidence = {"this_attempt_success": True, "failed_attempts": 4}
-    assert threat_router.route_authentication(evidence) == "account-takeover"
+    assert supervisor_agent.route_authentication(evidence) == "account-takeover"
 
 
 def test_route_authentication_does_not_select_account_takeover_on_failure():
     evidence = {"this_attempt_success": False, "failed_attempts": 10}
-    assert threat_router.route_authentication(evidence) == "brute-force"
+    assert supervisor_agent.route_authentication(evidence) == "brute-force"
 
 
 def test_route_files_defaults_to_malicious_pdf():
-    assert threat_router.route_files({"extension": ".md"}) == "malicious-pdf"
-    assert threat_router.route_files({"extension": ".pdf"}) == "malicious-pdf"
-    assert threat_router.route_files({"extension": ".xlsx"}) == "malicious-pdf"
+    assert supervisor_agent.route_files({"extension": ".md"}) == "malicious-pdf"
+    assert supervisor_agent.route_files({"extension": ".pdf"}) == "malicious-pdf"
+    assert supervisor_agent.route_files({"extension": ".xlsx"}) == "malicious-pdf"
 
 
 def test_route_files_selects_docx():
-    assert threat_router.route_files({"extension": ".docx"}) == "malicious-docx"
+    assert supervisor_agent.route_files({"extension": ".docx"}) == "malicious-docx"
 
 
 def test_route_files_selects_archive_bomb():
-    assert threat_router.route_files({"extension": ".zip"}) == "archive-bomb"
+    assert supervisor_agent.route_files({"extension": ".zip"}) == "archive-bomb"
 
 
 def test_route_chat_always_includes_baseline_defaults():
-    selected = threat_router.route_chat({})
+    selected = supervisor_agent.route_chat({})
     categories = {cat for cat, _sid in selected}
     skill_ids = {sid for _cat, sid in selected}
     assert categories == {"llm", "rag"}
@@ -89,14 +89,14 @@ def test_route_chat_always_includes_baseline_defaults():
 
 
 def test_route_chat_adds_jailbreak_on_override_language():
-    selected = threat_router.route_chat({"question_has_override_language": True})
+    selected = supervisor_agent.route_chat({"question_has_override_language": True})
     skill_ids = {sid for _cat, sid in selected}
     assert "jailbreak" in skill_ids
     assert "prompt-injection" in skill_ids  # baseline default is NOT dropped when jailbreak fires
 
 
 def test_route_chat_adds_model_extraction_and_retrieval_manipulation():
-    selected = threat_router.route_chat({
+    selected = supervisor_agent.route_chat({
         "question_has_extraction_language": True,
         "question_targets_retrieval_params": True,
     })
@@ -106,14 +106,14 @@ def test_route_chat_adds_model_extraction_and_retrieval_manipulation():
 
 
 def test_route_chat_adds_pii_exposure_when_context_has_pii():
-    selected = threat_router.route_chat({"context_contains_pii": True, "pii_types_found": ["phone"]})
+    selected = supervisor_agent.route_chat({"context_contains_pii": True, "pii_types_found": ["phone"]})
     skill_ids = {sid for _cat, sid in selected}
     assert "pii-exposure" in skill_ids
     assert "rag-poisoning" in skill_ids  # baseline still included alongside it
 
 
 def test_route_chat_no_pii_exposure_on_clean_context():
-    selected = threat_router.route_chat({"context_contains_pii": False})
+    selected = supervisor_agent.route_chat({"context_contains_pii": False})
     skill_ids = {sid for _cat, sid in selected}
     assert "pii-exposure" not in skill_ids
 
@@ -148,14 +148,14 @@ def test_pii_exposure_regression_unrelated_question_not_blocked():
 
 
 def test_route_chat_adds_external_api_abuse_when_external_search_used():
-    selected = threat_router.route_chat({"external_search_used": True})
+    selected = supervisor_agent.route_chat({"external_search_used": True})
     skill_ids = {sid for _cat, sid in selected}
     assert "external-api-abuse" in skill_ids
     assert "rag-poisoning" in skill_ids  # baseline still included alongside it
 
 
 def test_route_chat_no_external_api_abuse_when_no_external_search():
-    selected = threat_router.route_chat({"external_search_used": False})
+    selected = supervisor_agent.route_chat({"external_search_used": False})
     skill_ids = {sid for _cat, sid in selected}
     assert "external-api-abuse" not in skill_ids
 
@@ -184,8 +184,19 @@ def test_external_api_abuse_no_floor_on_clean_query():
     assert action is None
 
 
+def test_external_api_abuse_floor_blocks_question_directing_exfiltration():
+    # Real, observed attempt (2026-09-01): the QUESTION itself instructing
+    # the assistant to call an external API and exfiltrate data - no tool
+    # call needs to have happened for this floor to fire.
+    action, reason = detection.apply_floor(
+        "rag", "external-api-abuse", {"question_directs_data_exfiltration": True},
+    )
+    assert action == "BLOCK"
+    assert reason
+
+
 def test_route_agents_always_includes_tool_abuse_baseline():
-    selected = threat_router.route_agents({"tool_in_registered_set": True, "role_changed": False})
+    selected = supervisor_agent.route_agents({"tool_in_registered_set": True, "role_changed": False})
     assert selected == [("agents", "tool-abuse")]
 
 
@@ -195,7 +206,7 @@ def test_route_agents_adds_privilege_escalation_on_unaudited_role_change():
         "role_changed": True,
         "role_change_event_id": None,
     }
-    selected = threat_router.route_agents(evidence)
+    selected = supervisor_agent.route_agents(evidence)
     skill_ids = {sid for _cat, sid in selected}
     assert skill_ids == {"tool-abuse", "privilege-escalation"}
 
@@ -206,7 +217,7 @@ def test_route_agents_no_privilege_escalation_when_roles_match():
         "role_changed": False,
         "role_change_event_id": None,
     }
-    selected = threat_router.route_agents(evidence)
+    selected = supervisor_agent.route_agents(evidence)
     skill_ids = {sid for _cat, sid in selected}
     assert skill_ids == {"tool-abuse"}
 
@@ -217,9 +228,61 @@ def test_route_agents_no_privilege_escalation_when_role_change_audited():
         "role_changed": True,
         "role_change_event_id": 42,
     }
-    selected = threat_router.route_agents(evidence)
+    selected = supervisor_agent.route_agents(evidence)
     skill_ids = {sid for _cat, sid in selected}
     assert skill_ids == {"tool-abuse"}
+
+
+# --- supervisor_agent.all_skills_for() - the Supervisor Agent's Skills
+# output: the FULL taxonomy scope for a request_category, unconditional,
+# no filtering. gateway.py feeds every one of these skills' SKILL.md
+# content into the single Security LLM call, which alone decides
+# relevance (llm_discussion.py) - see supervisor_agent.py's module
+# docstring for why this replaced regex-based pre-selection. ---
+
+def test_all_skills_for_authentication_is_every_authentication_skill():
+    selected = supervisor_agent.all_skills_for("authentication")
+    assert {sid for _cat, sid in selected} == {
+        "credential-stuffing", "account-takeover", "brute-force", "password-spraying",
+    }
+    assert {cat for cat, _sid in selected} == {"authentication"}
+
+
+def test_all_skills_for_rag_security_spans_llm_and_rag_categories():
+    selected = supervisor_agent.all_skills_for("rag_security")
+    skill_ids = {sid for _cat, sid in selected}
+    assert skill_ids == {"jailbreak", "model-extraction", "prompt-injection",
+                          "pii-exposure", "external-api-abuse", "retrieval-manipulation", "rag-poisoning"}
+    assert {cat for cat, _sid in selected} == {"llm", "rag"}
+
+
+def test_all_skills_for_is_unconditional_regardless_of_evidence():
+    # No regex/condition filtering happens here anymore - the full set is
+    # identical no matter what the (irrelevant, unused) evidence would be,
+    # because this function doesn't take evidence as an input at all.
+    assert supervisor_agent.all_skills_for("file_security") == supervisor_agent.all_skills_for("file_security")
+    assert {sid for _cat, sid in supervisor_agent.all_skills_for("file_security")} == \
+        {"archive-bomb", "malicious-docx", "malicious-pdf"}
+
+
+def test_all_skills_for_unknown_request_category_raises():
+    with pytest.raises(ValueError):
+        supervisor_agent.all_skills_for("not_a_real_category")
+
+
+def test_password_spraying_floor_blocks_shared_password_across_accounts():
+    action, reason = detection.apply_floor(
+        "authentication", "password-spraying", {"distinct_usernames_same_password_5min": 5},
+    )
+    assert action == "BLOCK"
+    assert reason
+
+
+def test_password_spraying_no_floor_below_threshold():
+    action, _reason = detection.apply_floor(
+        "authentication", "password-spraying", {"distinct_usernames_same_password_5min": 4},
+    )
+    assert action is None
 
 
 def test_tool_abuse_floor_blocks_out_of_scope_tool_request():

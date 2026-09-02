@@ -1,0 +1,20 @@
+skill_id: password-spraying
+category: authentication
+
+signals:
+  - id: distinct_usernames_same_password_5min
+    type: integer
+    description: Distinct usernames attempted with the SAME submitted password, from this source IP, in the trailing 5 minutes (redis_tool - password tracked only as a correlation hash, never stored/logged)
+
+routing:
+  - field: distinct_usernames_same_password_5min
+    op: gte
+    value: 2
+    reason: "Even 2 distinct accounts sharing an identical submitted password from one source is worth discussing - real users essentially never coincide on this."
+
+floor:
+  field: distinct_usernames_same_password_5min
+  op: gte
+  value: 5
+  minimum_action: BLOCK
+  reason: "5+ distinct accounts sharing an identical submitted password from one source has essentially no innocent explanation - a lower bar than credential-stuffing's 10, because same-password-across-accounts is a stronger signal than distinct-accounts alone."

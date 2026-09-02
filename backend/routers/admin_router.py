@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 import auth
 import webapp_db as db
 from schemas import SetRoleRequest, UserOut
+from security_gateway.mcp_tools import redis_tool
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -37,14 +38,36 @@ def update_role(username: str, body: SetRoleRequest, admin: str = Depends(auth.r
     return db.get_user(username)
 
 
-@router.post("/users/{username}/clear-mfa-hold")
+@router.post("/users/{username}/clear-mfa-hold", response_model=UserOut)
 def clear_mfa_hold(username: str, admin: str = Depends(auth.require_admin)):
     """Clears the hold security_gateway/mcp_gateway.py's require_mfa tool
     sets (skills/authentication/*/SKILL.md's account-takeover response) -
     the only way one is ever lifted, since this build has no real
-    second-factor challenge for a user to complete themselves."""
+    second-factor challenge for a user to complete themselves. Returns
+    the updated user (same shape as /role and /unlock) so the frontend
+    can update its local state the same way for all three actions."""
     target = db.get_user(username)
     if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     db.set_mfa_hold(username, False)
-    return {"username": username, "mfa_hold": False, "cleared_by": admin}
+    return db.get_user(username)
+
+
+@router.post("/users/{username}/unlock", response_model=UserOut)
+def unlock_user(username: str, admin: str = Depends(auth.require_admin)):
+    """Clears BOTH the account-level lock (webapp_db.LOCKOUT_THRESHOLD -
+    3 consecutive failed attempts) AND the AI Security Gateway's own
+    identity-level Redis/local block (skills/authentication/brute-force's
+    floor - 5+ attempts/1 minute) in one action, since a real SOC "unlock
+    this user" request means let them log in again, full stop, regardless
+    of which of the two independent mechanisms is currently blocking them
+    (see skills/authentication/brute-force/SKILL.md for why they're
+    separate). Neither one is ever cleared any other way - a locked
+    account can never reach the login success path that would otherwise
+    reset it (auth_router.py checks `locked` before verifying the
+    password), and a Redis/local block only ever expires on its own TTL."""
+    if db.get_user(username) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    db.unlock_account(username)
+    redis_tool.unblock_identity(username, "authentication")
+    return db.get_user(username)

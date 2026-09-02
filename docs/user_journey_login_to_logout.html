@@ -195,9 +195,9 @@
     <div class="step sub">
       <div class="node">9</div>
       <div class="card">
-        <h3 style="font-size:0.94rem;">Threat Router → skill selection <span class="pill api">Routing</span></h3>
+        <h3 style="font-size:0.94rem;">Supervisor Agent → skill selection <span class="pill api">Routing</span></h3>
         <p>Dispatches to every matching skill under <code>skills/llm/</code> and <code>skills/rag/</code> at once — <code>prompt-injection</code> and <code>rag-poisoning</code> always run as the baseline; <code>jailbreak</code>, <code>model-extraction</code>, <code>pii-exposure</code>, <code>external-api-abuse</code> join only when their own pattern matches.</p>
-        <div class="meta"><code>threat_router.py :: route_chat()</code></div>
+        <div class="meta"><code>supervisor_agent.py :: route_chat()</code></div>
       </div>
     </div>
 
@@ -302,7 +302,7 @@
   <div class="footer">
     Source: <code>frontend/src/App.jsx</code>, <code>context/AuthContext.jsx</code>, <code>pages/Chat.jsx</code>,
     <code>components/Sidebar.jsx</code>, <code>backend/routers/auth_router.py</code>, and the AI Security Gateway
-    (<code>security_gateway/gateway.py</code>, <code>threat_router.py</code>, <code>detection.py</code>,
+    (<code>security_gateway/gateway.py</code>, <code>supervisor_agent.py</code>, <code>detection.py</code>,
     <code>policy.py</code>, <code>mcp_gateway.py</code>). Palette matches Claude Desktop's default light theme.
     See <code>docs/full_pipeline.html</code> for the gateway's full skill taxonomy and 13-tool MCP catalog, and
     <code>docs/pipeline_use_cases.html</code> for 10 concrete attack questions walked through the same pipeline.

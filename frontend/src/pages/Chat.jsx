@@ -81,12 +81,12 @@ export default function Chat() {
 
     try {
       const resp = await api.queryStream(text, activeId, handleEvent);
-      // skills_selected comes from the threat_router.route step already in
+      // skills_selected comes from the supervisor_agent.route step already in
       // the transcript - "pii-exposure" + a BLOCK means this specific
       // refusal is sitting in the Admin Dashboard's Pending Tool Approvals
       // queue (security_gateway/mcp_gateway.py's disclose_pii_answer),
       // not just a generic refusal - the badge below reflects that.
-      const routeStep = resp.transcript?.find((t) => t.name === "threat_router.route");
+      const routeStep = resp.transcript?.find((t) => t.name === "supervisor_agent.route");
       const pendingApproval = resp.gateway_action === "BLOCK"
         && routeStep?.result?.skills_selected?.includes("pii-exposure");
       setMessages((prev) => [

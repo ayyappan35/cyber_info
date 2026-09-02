@@ -1,0 +1,4 @@
+skill_id: password-spraying
+overrides:
+  BLOCK:
+    block_ttl_seconds: 1800   # 30 min - matches credential-stuffing's; a spraying source is more likely automated/persistent than one account's repeated typos
