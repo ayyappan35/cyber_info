@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login Authentication Skills — Live Test, Step by Step</title>
+<style>
+  :root{
+    /* same base palette as user_journey_login_to_logout.html / live_test_results.html — Claude Desktop default light theme */
+    --bg:#F7F6F3; --panel:#FFFFFF; --panel-soft:#FBFAF8; --border:#E7E5DF;
+    --text:#211F1C; --muted:#6B6A64; --muted2:#8A8880;
+    --accent:#D97757; --accent-dark:#BF5F42; --accent-soft:#FBEAE3; --accent-line:#EFC9BA;
+    --green:#3E8B5E; --green-soft:#E7F3EB;
+    --amber:#B9862C; --amber-soft:#FBF1DE;
+    --blue:#4E7CA6; --blue-soft:#E9F1F8;
+    --red:#C1503F; --red-soft:#FBEBE8;
+    --teal:#3F8E82; --teal-soft:#E3F2EF;
+    --purple:#7B6CB0; --purple-soft:#EEEAF7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55;}
+  .wrap{max-width:840px; margin:0 auto; padding:48px 24px 96px;}
+  h1{font-size:1.6rem; margin:0 0 6px; letter-spacing:-0.01em;}
+  h2{font-size:1.2rem; margin:52px 0 6px; color:var(--accent-dark);}
+  h2 .idx{font-family:ui-monospace,Consolas,monospace; font-size:0.75rem; color:var(--muted2); font-weight:400; margin-right:8px;}
+  .sub{color:var(--muted); font-size:0.95rem; margin:0 0 10px;}
+  .scenario-sub{color:var(--muted); font-size:0.88rem; margin:0 0 22px;}
+  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.83em; color:var(--accent-dark);}
+
+  .runinfo{display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 8px;}
+  .runinfo .chip{background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:5px 13px; font-size:0.78rem; color:var(--muted);}
+  .runinfo .chip b{color:var(--text);}
+
+  .legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:22px 0 8px; font-size:0.8rem; color:var(--muted);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
+
+  /* -------- login UI mock (mirrors frontend/src/pages/Login.jsx) -------- */
+  .loginmock{
+    display:grid; grid-template-columns:1fr 1.15fr; border:1px solid var(--border); border-radius:16px;
+    overflow:hidden; box-shadow:0 1px 3px rgba(20,20,15,0.05); margin:18px 0 10px; background:var(--panel);
+  }
+  .loginmock .hero{
+    background:linear-gradient(160deg,#211f1c 0%,#2b2a27 55%,#35281f 100%);
+    color:#ece8e1; padding:28px 22px; display:flex; flex-direction:column; justify-content:center; gap:10px;
+  }
+  .loginmock .hero .shield{font-size:26px;}
+  .loginmock .hero h3{margin:6px 0 2px; font-size:1.02rem; color:#fff;}
+  .loginmock .hero p{margin:0 0 6px; font-size:0.72rem; color:#c7c2b8; line-height:1.5;}
+  .loginmock .hero .feat{font-size:0.66rem; color:#e2ddd2; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:5px 8px; margin-top:3px;}
+  .loginmock .form{padding:26px 24px; display:flex; flex-direction:column; align-items:center;}
+  .loginmock .badge{width:32px; height:32px; border-radius:9px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; margin-bottom:10px;}
+  .loginmock .form h4{margin:0 0 2px; font-size:0.92rem;}
+  .loginmock .form .hint{font-size:0.72rem; color:var(--muted); margin:0 0 14px;}
+  .loginmock .field{width:100%; max-width:230px; margin-bottom:8px;}
+  .loginmock .field .flabel{font-size:0.66rem; color:var(--muted); display:block; margin-bottom:3px;}
+  .loginmock .field .finput{border:1px solid var(--border); border-radius:8px; padding:6px 9px; font-size:0.76rem; color:var(--muted2); background:var(--panel-soft); width:100%;}
+  .loginmock .btn{width:100%; max-width:230px; margin-top:6px; background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 10px; font-size:0.78rem; font-weight:600; text-align:center;}
+  .loginmock .banner{width:100%; max-width:230px; margin-top:10px; border-radius:8px; padding:7px 10px; font-size:0.7rem; line-height:1.4;}
+  .loginmock .banner.err{background:var(--red-soft); color:#8f3b2e; border:1px solid #f0d3ce;}
+  .loginmock .banner.warn{background:var(--amber-soft); color:#7a5a17; border:1px solid #ecdcae;}
+  .loginmock .banner.ok{background:var(--green-soft); color:#2b6b46; border:1px solid #cfe8d8;}
+  .loginmock .banner b{display:block; font-size:0.62rem; text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px;}
+  .capline{font-size:0.74rem; color:var(--muted2); text-align:center; margin:0 0 30px;}
+
+  /* -------- timeline (same pattern as the other docs/*.html files) -------- */
+  .timeline{position:relative; padding-left:52px;}
+  .timeline::before{
+    content:""; position:absolute; left:21px; top:8px; bottom:8px; width:2px;
+    background:linear-gradient(var(--accent-line), var(--border) 90%);
+  }
+  .step{position:relative; margin-bottom:16px;}
+  .node{
+    position:absolute; left:-52px; top:0; width:40px; height:40px; border-radius:50%;
+    background:var(--panel); border:2px solid var(--accent); color:var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.86rem;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
+  }
+  .step.gate .node{border-color:var(--amber); color:var(--amber);}
+  .step.llm .node{border-color:var(--purple); color:var(--purple);}
+  .step.mcp .node{border-color:var(--blue); color:var(--blue);}
+  .step.verify .node{border-color:var(--teal); color:var(--teal);}
+  .step.outcome .node{border-color:var(--red); color:var(--red);}
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:13px;
+    padding:14px 18px; box-shadow:0 1px 3px rgba(20,20,15,0.04);
+  }
+  .card h3{margin:0 0 4px; font-size:0.94rem;}
+  .card p{margin:0; font-size:0.83rem; color:var(--muted);}
+  .card .meta{margin-top:8px; font-size:0.74rem; color:var(--muted2);}
+  .pill{
+    display:inline-block; font-size:0.64rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
+    padding:2px 8px; border-radius:999px; margin-left:7px; vertical-align:middle;
+  }
+  .pill.ui{background:var(--accent-soft); color:var(--accent-dark);}
+  .pill.gate{background:var(--amber-soft); color:var(--amber);}
+  .pill.llm{background:var(--purple-soft); color:var(--purple);}
+  .pill.mcp{background:var(--blue-soft); color:var(--blue);}
+  .pill.verify{background:var(--teal-soft); color:var(--teal);}
+  .pill.block{background:var(--red-soft); color:var(--red);}
+  .pill.mitigate{background:var(--amber-soft); color:var(--amber);}
+
+  .rowgrid{display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:6px; font-size:0.79rem;}
+  .rowgrid .k{color:var(--muted2); white-space:nowrap;}
+  .rowgrid .v{color:var(--text); font-variant-numeric:tabular-nums;}
+
+  .reasoning{
+    margin-top:9px; padding:9px 12px; border-radius:9px; background:var(--purple-soft);
+    border:1px solid #ddd6ee; color:#4c4270; font-size:0.8rem;
+  }
+  .reasoning b{display:block; font-size:0.68rem; text-transform:uppercase; letter-spacing:.02em; margin-bottom:3px; color:#665a91;}
+
+  .indicators{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .indicators span{background:var(--amber-soft); color:var(--amber); border:1px solid #ecdcae; border-radius:999px; padding:2px 9px; font-size:0.7rem;}
+
+  .toolgrid{display:flex; flex-direction:column; gap:6px; margin-top:9px;}
+  .toolrow{display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--border); background:var(--panel-soft); border-radius:8px; padding:7px 10px; font-size:0.75rem;}
+  .toolrow code{font-size:0.75em;}
+  .tstat{font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em; padding:1px 7px; border-radius:999px; white-space:nowrap; background:var(--green-soft); color:var(--green);}
+
+  .skillpills{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .skillpill{border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-dark); border-radius:999px; padding:3px 10px; font-size:0.72rem; font-weight:600;}
+  .skillpill.secondary{border-color:var(--border); background:var(--panel-soft); color:var(--muted);}
+
+  .footer{margin-top:56px; padding-top:18px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
+  .note{margin:26px 0 0; padding:12px 16px; border:1px solid var(--border); border-left:4px solid var(--blue); background:var(--panel-soft); border-radius:8px; font-size:0.85rem; color:var(--muted);}
+
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0;}
+  .toc a{font-size:0.78rem; color:var(--accent-dark); text-decoration:none; background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:999px; padding:5px 12px;}
+  .toc a:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Login authentication skills — live test, step by step</h1>
+  <p class="sub">The real login screen (<code>frontend/src/pages/Login.jsx</code>), traced through every
+    step of the AI Security Gateway for all four <code>authentication</code>-taxonomy skills — not a
+    code-level simulation: each scenario below is a genuine call into
+    <code>security_gateway/gateway.py::analyze()</code>, with a real Claude Sonnet 5 Security LLM
+    Discussion call, real MCP tool execution, and the exact response text
+    <code>backend/routers/auth_router.py</code> would return to this screen.</p>
+
+  <div class="runinfo">
+    <span class="chip">Provider <b>anthropic / claude-sonnet-5</b></span>
+    <span class="chip">Category <b>authentication</b></span>
+    <span class="chip">Skills offered <b>4 / 4</b>, every call, unfiltered</span>
+    <span class="chip">Run date <b>2026-09-02</b></span>
+    <span class="chip">Result <b>4 / 4 matched intended skill</b></span>
+  </div>
+
+  <div class="toc">
+    <a href="#login-ui">Login UI</a>
+    <a href="#brute-force">brute-force</a>
+    <a href="#credential-stuffing">credential-stuffing</a>
+    <a href="#account-takeover">account-takeover</a>
+    <a href="#password-spraying">password-spraying</a>
+  </div>
+
+  <h2 id="login-ui"><span class="idx">UI</span>The screen every scenario starts from</h2>
+  <p class="scenario-sub">Split-screen login: a dark hero panel (shield mark, tagline, feature list) beside
+    the credentials card. Username/password submit to <code>POST /api/auth/login</code>; everything below
+    happens on the server before that request resolves — the form never talks to the Security Gateway directly.</p>
+
+  <div class="loginmock">
+    <div class="hero">
+      <div class="shield">🛡️</div>
+      <h3>Cyber Defense Assistant</h3>
+      <p>An autonomous SOC copilot that reasons over real MCP tool calls — detection, response, and training, all agent-driven.</p>
+      <div class="feat">🤖 Agentic tool-calling, no hardcoded pipelines</div>
+      <div class="feat">🛡️ Red vs blue team cyber-range simulation</div>
+    </div>
+    <div class="form">
+      <div class="badge">CD</div>
+      <h4>Welcome back</h4>
+      <p class="hint">Sign in to continue</p>
+      <div class="field"><span class="flabel">Username</span><div class="finput">alice_bf</div></div>
+      <div class="field"><span class="flabel">Password</span><div class="finput">••••••••••••</div></div>
+      <div class="btn">Sign in</div>
+    </div>
+  </div>
+  <p class="capline">Same screen, same form — only the account/IP behind it changes per scenario below.</p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--accent)"></i>UI / request</span>
+    <span><i class="dot" style="background:var(--amber)"></i>Deterministic gate (bcrypt, pre-checks)</span>
+    <span><i class="dot" style="background:var(--purple)"></i>Supervisor Agent / Security LLM Discussion</span>
+    <span><i class="dot" style="background:var(--blue)"></i>MCP Tool Authorization Gateway</span>
+    <span><i class="dot" style="background:var(--teal)"></i>Verification</span>
+    <span><i class="dot" style="background:var(--red)"></i>Response back to the login screen</span>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- BRUTE FORCE -->
+  <!-- ======================================================================= -->
+  <h2 id="brute-force"><span class="idx">Skill 1</span>brute-force <span class="pill block">BLOCK · conf 0.90</span></h2>
+  <p class="scenario-sub">6 failed attempts in 1 minute against <b>one account</b> (<code>alice_bf</code>)
+    from <b>one source IP</b> (<code>198.51.100.10</code>) — repeated failure concentrated on a single
+    target, the pattern <code>skills/authentication/brute-force</code> is the default fallback for.</p>
+
+  <div class="timeline">
+    <div class="step">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>6th submit on this account <span class="pill ui">UI</span></h3>
+        <p>Same form as above — <code>alice_bf</code> has now typed a wrong password 6 times in under a minute. Each submit is its own <code>POST /api/auth/login</code>.</p>
+      </div>
+    </div>
+    <div class="step gate">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>Pre-checks + bcrypt <span class="pill gate">Deterministic</span></h3>
+        <p>Neither <code>alice_bf</code> nor <code>198.51.100.10</code> is blocked yet, account isn't locked and has no MFA hold, so the request reaches <code>auth.verify_password()</code> — a real bcrypt compare against the stored hash. Fails, same as the prior 5.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Evidence gathered <span class="pill gate">gather_authentication_evidence()</span></h3>
+        <div class="rowgrid">
+          <span class="k">recent_attempt_count_1min</span><span class="v">6</span>
+          <span class="k">distinct_usernames_from_source_5min</span><span class="v">1</span>
+          <span class="k">distinct_usernames_same_password_5min</span><span class="v">1</span>
+          <span class="k">this_attempt_success</span><span class="v">false</span>
+        </div>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>Supervisor Agent → all 4 skills offered <span class="pill llm">Unfiltered</span></h3>
+        <p><code>all_skills_for("authentication")</code> — <code>credential-stuffing</code>, <code>account-takeover</code>, <code>brute-force</code>, <code>password-spraying</code> all fed to the same prompt, every time. No pre-filtering decides this is "the brute-force case" before the model sees it.</p>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">5</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This is a classic brute-force attack: 6 failed login attempts in one minute against a single account from one source, which crosses the automatic block threshold. It's not spraying or credential stuffing since only one account/one password is involved, and no success has occurred yet so it's not an account takeover."</div>
+        <div class="indicators">
+          <span>6 attempts / 1 min, single account</span>
+          <span>single account, single source</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">brute-force</span></div>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">6</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <p>Each tool call below is the model's own — name <i>and</i> arguments, grounded in this request's evidence, not re-derived deterministically.</p>
+        <div class="toolgrid">
+          <div class="toolrow"><code>get_login_attempts(username=alice_bf)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_ip_reputation(source_ip=198.51.100.10)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>block_ip(source_ip=198.51.100.10) → 1800s</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>rate_limit_user(username=alice_bf) → 300s</code><span class="tstat">executed</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="step verify">
+      <div class="node">7</div>
+      <div class="card">
+        <h3>Verification <span class="pill verify">re-read, not trusted</span></h3>
+        <p><code>redis_tool.is_blocked("198.51.100.10", "authentication")</code> re-read and confirmed true before anything is reported enforced. <code>db.lock_account("alice_bf")</code> also runs — the LLM's BLOCK verdict is what locks the account now, not a fixed failed-attempt counter.</p>
+      </div>
+    </div>
+    <div class="step outcome">
+      <div class="node">8</div>
+      <div class="card">
+        <h3>Back to the login screen <span class="pill block">429 · locked</span></h3>
+        <div class="loginmock" style="margin-top:10px;">
+          <div class="hero">
+            <div class="shield">🛡️</div>
+            <h3>Cyber Defense Assistant</h3>
+            <p>An autonomous SOC copilot that reasons over real MCP tool calls — detection, response, and training, all agent-driven.</p>
+          </div>
+          <div class="form">
+            <div class="badge">CD</div>
+            <h4>Welcome back</h4>
+            <p class="hint">Sign in to continue</p>
+            <div class="field"><span class="flabel">Username</span><div class="finput">alice_bf</div></div>
+            <div class="field"><span class="flabel">Password</span><div class="finput">••••••••••••</div></div>
+            <div class="btn">Sign in</div>
+            <div class="banner err"><b>Sign in failed</b>Login blocked by the security gateway - suspicious attempt pattern detected.</div>
+          </div>
+        </div>
+        <p class="meta">Exact string returned by <code>auth_router.py::login()</code> on a BLOCK verdict. Any further attempt on this account now also hits <code>"Account locked due to too many failed attempts"</code> before the gateway is even asked again.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- CREDENTIAL STUFFING -->
+  <!-- ======================================================================= -->
+  <h2 id="credential-stuffing"><span class="idx">Skill 2</span>credential-stuffing <span class="pill mitigate">MITIGATE · conf 0.55</span></h2>
+  <p class="scenario-sub">4 distinct accounts (<code>bob1 / carol1 / dave1 / erin1</code>), each tried once
+    with its <b>own distinct password</b>, all from <b>one source IP</b> (<code>198.51.100.20</code>) — the
+    "many accounts, each with its own breached credential" shape a leaked username/password list produces.</p>
+
+  <div class="timeline">
+    <div class="step">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>4th account tried from this source <span class="pill ui">UI</span></h3>
+        <p>Same form, submitted as <code>erin1</code> — the 4th distinct username this source has tried in 5 minutes, each with a different password from the same leaked list.</p>
+      </div>
+    </div>
+    <div class="step gate">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>Pre-checks + bcrypt <span class="pill gate">Deterministic</span></h3>
+        <p>Neither <code>erin1</code> nor the source IP is blocked yet. <code>bcrypt</code> compares the submitted password against <code>erin1</code>'s real hash — fails, this is a guessed/leaked credential, not the real one.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Evidence gathered <span class="pill gate">gather_authentication_evidence()</span></h3>
+        <div class="rowgrid">
+          <span class="k">distinct_usernames_from_source_5min</span><span class="v">4</span>
+          <span class="k">distinct_usernames_same_password_5min</span><span class="v">1</span>
+          <span class="k">recent_attempt_count_1min</span><span class="v">1</span>
+          <span class="k">this_attempt_success</span><span class="v">false</span>
+        </div>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>Supervisor Agent → all 4 skills offered <span class="pill llm">Unfiltered</span></h3>
+        <p>Same taxonomy, same 4 skills, same prompt shape as every other scenario — the model has to distinguish "many accounts, own passwords" from brute-force's "one account, many tries" itself.</p>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">5</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This source has tried 4 different accounts in 5 minutes with only 1 attempt per account and no repeated password, which looks like early-stage credential stuffing but is still under the automatic block thresholds. It warrants closer monitoring and rate limiting rather than an outright block at this point."</div>
+        <div class="indicators">
+          <span>4 distinct usernames, one source</span>
+          <span>no repeated password</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">credential-stuffing</span></div>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">6</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>get_login_attempts(username=erin1)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_ip_reputation(source_ip=198.51.100.20)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>rate_limit_user(username=erin1) → 300s</code><span class="tstat">executed</span></div>
+        </div>
+        <p class="meta">MITIGATE, not BLOCK — no <code>block_ip</code> proposed. The model chose the lighter remediation the verdict actually calls for, not the maximum available tool.</p>
+      </div>
+    </div>
+    <div class="step verify">
+      <div class="node">7</div>
+      <div class="card">
+        <h3>Verification <span class="pill verify">re-read, not trusted</span></h3>
+        <p>Rate-limit state re-read after the tool call. No sandbox row, no identity block to confirm — MITIGATE here has no enforcement action of its own beyond the tool calls above.</p>
+      </div>
+    </div>
+    <div class="step outcome">
+      <div class="node">8</div>
+      <div class="card">
+        <h3>Back to the login screen <span class="pill mitigate">401 · ordinary failure, on the surface</span></h3>
+        <div class="loginmock" style="margin-top:10px;">
+          <div class="hero">
+            <div class="shield">🛡️</div>
+            <h3>Cyber Defense Assistant</h3>
+            <p>An autonomous SOC copilot that reasons over real MCP tool calls — detection, response, and training, all agent-driven.</p>
+          </div>
+          <div class="form">
+            <div class="badge">CD</div>
+            <h4>Welcome back</h4>
+            <p class="hint">Sign in to continue</p>
+            <div class="field"><span class="flabel">Username</span><div class="finput">erin1</div></div>
+            <div class="field"><span class="flabel">Password</span><div class="finput">••••••••••••</div></div>
+            <div class="btn">Sign in</div>
+            <div class="banner err"><b>Sign in failed</b>Invalid username or password</div>
+          </div>
+        </div>
+        <p class="meta">MITIGATE doesn't raise <code>gateway.py</code>'s BLOCK exception, so the login flow falls through to its normal wrong-password path — the attacker sees nothing different from a plain typo, while <code>erin1</code> is already rate-limited server-side.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- ACCOUNT TAKEOVER -->
+  <!-- ======================================================================= -->
+  <h2 id="account-takeover"><span class="idx">Skill 3</span>account-takeover <span class="pill mitigate">MITIGATE · conf 0.60</span></h2>
+  <p class="scenario-sub">3 failed attempts against <code>frank_ato</code>, immediately followed by a
+    <b>successful</b> login on the same account — a success breaking an established suspicious pattern,
+    not a clean sign-in.</p>
+
+  <div class="timeline">
+    <div class="step">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>4th attempt, this one correct <span class="pill ui">UI</span></h3>
+        <p><code>frank_ato</code> typed the wrong password 3 times, then the 4th submit uses the real password.</p>
+      </div>
+    </div>
+    <div class="step gate">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>Pre-checks + bcrypt <span class="pill gate">Deterministic</span></h3>
+        <p>No block, no lock, no MFA hold yet on this account. <code>bcrypt</code> compares the submitted password — this time it <b>matches</b>. <code>success = true</code>, but the gateway still runs before any token is issued.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Evidence gathered <span class="pill gate">gather_authentication_evidence()</span></h3>
+        <div class="rowgrid">
+          <span class="k">failed_attempts</span><span class="v">3</span>
+          <span class="k">this_attempt_success</span><span class="v">true</span>
+          <span class="k">recent_attempt_count_1min</span><span class="v">4</span>
+          <span class="k">distinct_usernames_from_source_5min</span><span class="v">1</span>
+        </div>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>Supervisor Agent → all 4 skills offered <span class="pill llm">Unfiltered</span></h3>
+        <p>The <i>same</i> 4 skills as every scenario here — <code>account-takeover</code> has no floor of its own in <code>detection.yaml</code> at all (deliberately: there's no unambiguous numeric threshold for "was this success actually the attacker"). Whether it fires is entirely the model's call.</p>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">5</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This login succeeded right after several failed attempts on the same account from the same source, which looks like a possible account takeover rather than the owner mistyping their password. It's not a large-scale or clearly automated attack, but the pattern warrants closer review and a temporary access hold."</div>
+        <div class="indicators">
+          <span>success after 3 failures, same account</span>
+          <span>short window between failure &amp; success</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">account-takeover</span></div>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">6</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>get_login_attempts(username=frank_ato)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>require_mfa(username=frank_ato)</code><span class="tstat">executed</span></div>
+        </div>
+        <p class="meta"><code>require_mfa</code> sets an admin-clearable access hold — not <code>terminate_session</code>, which the model correctly withheld: this token was only just about to be issued, there's no earlier attacker session here to kill.</p>
+      </div>
+    </div>
+    <div class="step verify">
+      <div class="node">7</div>
+      <div class="card">
+        <h3>Verification <span class="pill verify">re-read, not trusted</span></h3>
+        <p><code>webapp_db.app_users.mfa_hold</code> re-read and confirmed <code>true</code> for <code>frank_ato</code> before the tool call is reported enforced.</p>
+      </div>
+    </div>
+    <div class="step outcome">
+      <div class="node">8</div>
+      <div class="card">
+        <h3>This login → then the next one <span class="pill mitigate">200 now, 403 next time</span></h3>
+        <div class="loginmock" style="margin-top:10px;">
+          <div class="hero">
+            <div class="shield">🛡️</div>
+            <h3>Cyber Defense Assistant</h3>
+            <p>An autonomous SOC copilot that reasons over real MCP tool calls — detection, response, and training, all agent-driven.</p>
+          </div>
+          <div class="form">
+            <div class="badge">CD</div>
+            <h4>Welcome back</h4>
+            <p class="hint">Sign in to continue</p>
+            <div class="field"><span class="flabel">Username</span><div class="finput">frank_ato</div></div>
+            <div class="field"><span class="flabel">Password</span><div class="finput">••••••••••••</div></div>
+            <div class="btn">Sign in</div>
+            <div class="banner ok"><b>Signed in</b>Password was correct — token issued, redirected to /chat. The MFA hold set above applies to the <i>next</i> login attempt, not this one.</div>
+          </div>
+        </div>
+        <p class="meta">Whoever logs in next as <code>frank_ato</code> — the legitimate owner or the attacker — hits <code>mfa_hold</code>'s gate first, before <code>bcrypt</code> even runs: <code>"This account is on hold pending security review - contact an admin."</code> (403), until an admin clears it from the dashboard.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- PASSWORD SPRAYING -->
+  <!-- ======================================================================= -->
+  <h2 id="password-spraying"><span class="idx">Skill 4</span>password-spraying <span class="pill block">BLOCK · conf 0.96</span></h2>
+  <p class="scenario-sub">6 distinct accounts (<code>greg1 … leo1</code>), each tried with the
+    <b>exact same</b> submitted password (<code>Autumn2026!</code>), all from <b>one source IP</b>
+    (<code>198.51.100.40</code>) — the signal <code>credential-stuffing</code> alone can't see.</p>
+
+  <div class="timeline">
+    <div class="step">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>6th account, same password again <span class="pill ui">UI</span></h3>
+        <p>Submitted as <code>leo1</code> — the 6th distinct username this source has tried with the identical password string in 5 minutes.</p>
+      </div>
+    </div>
+    <div class="step gate">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>Pre-checks + bcrypt <span class="pill gate">Deterministic</span></h3>
+        <p>Not yet blocked. <code>bcrypt</code> compares <code>Autumn2026!</code> against <code>leo1</code>'s real hash — fails, this is a common/guessed password, not the account's own.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Evidence gathered <span class="pill gate">gather_authentication_evidence()</span></h3>
+        <div class="rowgrid">
+          <span class="k">distinct_usernames_same_password_5min</span><span class="v">6</span>
+          <span class="k">distinct_usernames_from_source_5min</span><span class="v">6</span>
+          <span class="k">recent_attempt_count_1min</span><span class="v">1</span>
+          <span class="k">this_attempt_success</span><span class="v">false</span>
+        </div>
+        <p class="meta">The submitted password itself is never stored/logged — only a SHA-256 correlation hash (does this attempt's password match a prior one), evicted with the sliding window.</p>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>Supervisor Agent → all 4 skills offered <span class="pill llm">Unfiltered</span></h3>
+        <p>Same 4 skills again. This is the one scenario built to plausibly satisfy two skills' patterns at once — worth watching whether the model reports one or both.</p>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">5</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This source is trying the same password across 6 different accounts in a short window, which is a textbook password-spraying attack and exceeds the block threshold for that pattern. The source should be blocked rather than just the single account, since the attacker is the IP, not any one targeted user."</div>
+        <div class="indicators">
+          <span>6 usernames, same source</span>
+          <span>identical password across all 6</span>
+          <span>low-and-slow spray shape</span>
+        </div>
+        <div class="skillpills">
+          <span class="skillpill">password-spraying</span>
+          <span class="skillpill secondary">credential-stuffing</span>
+        </div>
+        <p class="meta">Both fired — correctly: the same evidence genuinely satisfies both skills' patterns (many accounts <i>and</i> one shared password). <code>password-spraying</code> was reported first / primary, matching its stronger, lower-false-positive signal.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">6</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>block_ip(source_ip=198.51.100.40) → 1800s</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_ip_reputation(source_ip=198.51.100.40)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_login_attempts(username=leo1)</code><span class="tstat">executed</span></div>
+        </div>
+        <p class="meta"><code>block_ip</code> is the naturally-fitting proposal here, same as brute-force — the source is the actual attacker, not any one targeted account. No admin approval gate on this branch (<code>docs/AGENTIC_SYSTEM_EXPERIMENT.md</code>) — it executed immediately.</p>
+      </div>
+    </div>
+    <div class="step verify">
+      <div class="node">7</div>
+      <div class="card">
+        <h3>Verification <span class="pill verify">re-read, not trusted</span></h3>
+        <p><code>redis_tool.is_blocked("198.51.100.40", "authentication")</code> re-read and confirmed true.</p>
+      </div>
+    </div>
+    <div class="step outcome">
+      <div class="node">8</div>
+      <div class="card">
+        <h3>Back to the login screen <span class="pill block">429 · source blocked</span></h3>
+        <div class="loginmock" style="margin-top:10px;">
+          <div class="hero">
+            <div class="shield">🛡️</div>
+            <h3>Cyber Defense Assistant</h3>
+            <p>An autonomous SOC copilot that reasons over real MCP tool calls — detection, response, and training, all agent-driven.</p>
+          </div>
+          <div class="form">
+            <div class="badge">CD</div>
+            <h4>Welcome back</h4>
+            <p class="hint">Sign in to continue</p>
+            <div class="field"><span class="flabel">Username</span><div class="finput">leo1</div></div>
+            <div class="field"><span class="flabel">Password</span><div class="finput">••••••••••••</div></div>
+            <div class="btn">Sign in</div>
+            <div class="banner err"><b>Sign in failed</b>Login blocked by the security gateway - suspicious attempt pattern detected.</div>
+          </div>
+        </div>
+        <p class="meta">Every subsequent request from <code>198.51.100.40</code> — against <code>leo1</code> or any other account — now hits the IP-block gate first: <code>"This source has been blocked by the security gateway - try again later."</code>, before <code>bcrypt</code> or the gateway ever runs again.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>What "unfiltered" means here:</b> every scenario above was offered the identical 4-skill set —
+    nothing about which account, IP, or evidence field was present changed which skills reached the
+    prompt. <code>supervisor_agent.py::all_skills_for("authentication")</code> is pure enumeration; which
+    skill(s) actually explain the verdict is reported back by the model itself
+    (<code>matched_skill_ids</code>), not decided beforehand by regex routing. Tool <i>arguments</i> are
+    the model's own too — grounded correctly in every run above, but see
+    <code>docs/AGENTIC_SYSTEM_EXPERIMENT.md</code> for the risk that stops being true under a crafted,
+    adversarial prompt rather than an ordinary attack pattern like these four.
+  </div>
+
+  <div class="footer">
+    Live run — not a simulation. All four calls made directly into
+    <code>security_gateway/gateway.py::analyze("authentication", …)</code> with real evidence shaped to
+    each skill's own defining signal (<code>skills/authentication/*/SKILL.md</code>), real Claude Sonnet 5
+    Security LLM Discussion output, and real MCP tool execution — captured verbatim. Login screen mirrors
+    <code>frontend/src/pages/Login.jsx</code>; response text mirrors
+    <code>backend/routers/auth_router.py::login()</code> exactly. Same base theme as
+    <code>docs/live_test_results.html</code> / <code>docs/user_journey_login_to_logout.html</code>. See
+    <code>docs/AGENTIC_SYSTEM_EXPERIMENT.md</code> for what "agentic" means on this branch, and
+    <code>docs/architecture.md</code> for the full pipeline.
+  </div>
+
+</div>
+</body>
+</html>
