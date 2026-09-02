@@ -1,34 +1,49 @@
 """MCP Tool Authorization Gateway: the boundary between "the Security LLM
-Discussion node proposed this tool" and "this tool actually executes."
+Discussion node proposed this tool call" and "this tool actually executes."
 
     Security LLM Discussion
             |
-      required_tools: [str]   (names only - see decision.py)
+      required_tools: [ToolCall(name, arguments), ...]   (see decision.py)
             |
             v
     mcp_gateway.authorize_and_execute()   <- THIS MODULE
             |
       1. tool exists in TOOL_CATALOG?
-      2. tool's allowed_categories includes this request's category?
-      3. rate limit not exceeded?
-      4. requires_approval? -> queue in security_db.pending_tool_calls,
-         do NOT execute
-      5. else -> execute the tool's real implementation now
+      2. execute the tool's real implementation with the LLM-supplied
+         arguments now (any KeyError/TypeError/ValueError the executor
+         raises over a missing/malformed argument is caught here and
+         denied, never allowed to crash the request)
             |
             v
       logged to SIEM either way
 
-Arguments are never taken from the LLM - CLAUDE.md/README's existing
-principle ("authentication must never be something an LLM decides")
-extends here: an LLM proposing WHICH tool applies to a request is
-reasonable judgment; an LLM inventing the tool's ARGUMENTS (a username,
-an IP, a document_id) is not - those are already known, trusted values
-from the request's own evidence/identity, filled in here deterministically
-(_ARGUMENT_BUILDERS below), never parsed from the model's own text. This
-also sidesteps a real, observed problem: `llama3.2:3b` struggles with
-multi-field structured tool-call arguments (see docs/architecture.md's
-"known limitations").
-"""
+agentic_system branch, 2026-09-02: arguments are now taken directly from
+the Security LLM's own ToolCall.arguments (security_gateway/decision.py) -
+the deterministic per-tool-name argument builder that used to live here
+(`_args_for()`, keyed on tool_name, pulling values only from the current
+request's own trusted evidence/identity) has been removed entirely. This
+is a further, deliberate regression from main's original design in the
+same spirit as the category-scoping/rate-limit/approval-gate removal
+below: the LLM proposing WHICH tool applies AND what arguments it takes
+is fully trusted, with no independent grounding check that an argument
+(a source_ip, a username, a document_id) actually belongs to this
+request. A prompt-injected message can now steer block_ip/terminate_session/
+disclose_pii_answer/etc. at an attacker-chosen target, not just the
+current request's own identity/evidence - see docs/AGENTIC_SYSTEM_EXPERIMENT.md.
+
+The handful of tool calls that are NOT LLM-proposed (skills/rag/
+pii-exposure's forced disclose_pii_answer approval queue in gateway.py,
+the agent-to-agent get_ip_reputation call in backend/routers/
+agent_router.py, chat_agent.py's search_external_web) still build their
+own small, local arguments dict inline at their own call site, from
+their own already-known evidence - there is no longer one central
+dispatch table doing this for every tool by name.
+
+Each TOOL_CATALOG entry's `args_hint` documents the argument shape its
+executor expects, purely so the Security LLM's prompt (llm_discussion.py)
+can tell the model what to supply - it is documentation for the prompt,
+not a validated schema; nothing here enforces that an LLM-supplied
+`arguments` dict actually matches its hint."""
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -40,13 +55,17 @@ import webapp_db as db
 from security_gateway.mcp_tools import redis_tool, sandbox_tool, siem_tool
 
 # --- tool catalog -----------------------------------------------------------
-# Every tool the Security LLM Discussion node may propose. `allowed_categories`
-# is a real security boundary: an authentication skill proposing
-# "remove_vector" (a files/rag tool) is rejected here regardless of what the
-# model output, never silently executed cross-category.
+# Every tool the Security LLM Discussion node may propose. `allowed_categories`/
+# `requires_approval`/`rate_limit` are inert metadata as of the agentic_system
+# merge (authorize_and_execute() below no longer reads them - see its own
+# docstring); kept in place as documentation of main's original design
+# rather than deleted, same treatment detection.yaml's `routing:` sections
+# got. `args_hint` is live: llm_discussion.py reads it to tell the Security
+# LLM what argument keys each tool's real executor expects.
 TOOL_CATALOG = {
     "get_login_attempts": {
         "risk": "low", "requires_approval": False, "allowed_categories": ["authentication"],
+        "args_hint": {"username": "string"},
     },
     "get_ip_reputation": {
         # "agent_security" added 2026-08-24: the one tool deliberately made
@@ -66,28 +85,36 @@ TOOL_CATALOG = {
         # this catalog didn't scope to agent_security, regardless of what
         # its own registered role/tools claim.
         "risk": "low", "requires_approval": False, "allowed_categories": ["authentication", "agent_security"],
+        "args_hint": {"source_ip": "string"},
     },
     "rate_limit_user": {
         "risk": "medium", "requires_approval": False, "allowed_categories": ["authentication"],
         "rate_limit": {"max": 20, "window_seconds": 60},
+        "args_hint": {"username": "string"},
     },
     "require_mfa": {
         "risk": "high", "requires_approval": False, "allowed_categories": ["authentication"],
+        "args_hint": {"username": "string"},
     },
     "block_ip": {
         "risk": "critical", "requires_approval": True, "allowed_categories": ["authentication"],
+        "args_hint": {"source_ip": "string"},
     },
     "terminate_session": {
         "risk": "critical", "requires_approval": True, "allowed_categories": ["authentication"],
+        "args_hint": {"username": "string"},
     },
     "get_document_provenance": {
         "risk": "low", "requires_approval": False, "allowed_categories": ["file_security", "rag_security"],
+        "args_hint": {"filename": "string"},
     },
     "quarantine_document": {
         "risk": "medium", "requires_approval": False, "allowed_categories": ["file_security", "rag_security"],
+        "args_hint": {"filename": "string"},
     },
     "remove_vector": {
         "risk": "high", "requires_approval": True, "allowed_categories": ["file_security", "rag_security"],
+        "args_hint": {"document_id": "string"},
     },
     "disclose_pii_answer": {
         # Not LLM-proposed like the other tools - security_gateway/gateway.py
@@ -97,6 +124,7 @@ TOOL_CATALOG = {
         # the generated answer is computed only once an admin explicitly
         # approves, never before.
         "risk": "critical", "requires_approval": True, "allowed_categories": ["rag_security"],
+        "args_hint": {"question": "string", "context": "string", "pii_types_found": "list of strings"},
     },
     "search_external_web": {
         # Also not LLM-proposed via the Security LLM Discussion node like
@@ -114,6 +142,7 @@ TOOL_CATALOG = {
         # external-api-abuse/SKILL.md.
         "risk": "medium", "requires_approval": False, "allowed_categories": ["rag_security"],
         "rate_limit": {"max": 8, "window_seconds": 300},
+        "args_hint": {"query": "string"},
     },
     "revoke_agent_credentials": {
         # skills/agents/tool-abuse's and .../privilege-escalation's own
@@ -124,12 +153,14 @@ TOOL_CATALOG = {
         # agent identity outright is consequential, same tier as
         # block_ip/terminate_session.
         "risk": "critical", "requires_approval": True, "allowed_categories": ["agent_security"],
+        "args_hint": {"agent_id": "string"},
     },
     "remove_agent_tool_access": {
         # A narrower containment than revoke_agent_credentials - removes
         # one tool from an agent's registered set rather than disabling it
         # outright.
         "risk": "high", "requires_approval": True, "allowed_categories": ["agent_security"],
+        "args_hint": {"agent_id": "string", "tool_name": "string (the OFFENDING tool being removed)"},
     },
 }
 
@@ -146,7 +177,7 @@ TOOL_CATALOG = {
 @dataclass
 class ToolResult:
     tool_name: str
-    status: str  # authorized_executed | pending_approval | denied_out_of_scope | denied_rate_limited
+    status: str  # authorized_executed | pending_approval | denied_out_of_scope | denied_rate_limited | denied_invalid_arguments
     arguments: dict = field(default_factory=dict)
     result: Optional[dict] = None
     call_id: Optional[int] = None
@@ -173,33 +204,6 @@ def _rate_limited(tool_name: str, identity: str) -> bool:
         return True
     dq.append(now)
     return False
-
-
-# --- argument builders (deterministic, never LLM-sourced) -------------------
-
-def _args_for(tool_name: str, identity: str, evidence: dict) -> dict:
-    if tool_name in ("get_login_attempts", "rate_limit_user", "require_mfa", "terminate_session"):
-        return {"username": identity}
-    if tool_name == "get_ip_reputation":
-        return {"source_ip": evidence.get("source_ip", "unknown")}
-    if tool_name == "block_ip":
-        return {"source_ip": evidence.get("source_ip", "unknown")}
-    if tool_name in ("get_document_provenance", "quarantine_document", "remove_vector"):
-        return {"filename": evidence.get("filename"), "document_id": evidence.get("document_id")}
-    if tool_name == "disclose_pii_answer":
-        return {"question": evidence.get("question", ""), "context": evidence.get("retrieved_context", ""),
-                "pii_types_found": evidence.get("pii_types_found", [])}
-    if tool_name == "search_external_web":
-        return {"query": evidence.get("external_query", "")}
-    if tool_name in ("revoke_agent_credentials", "remove_agent_tool_access"):
-        # identity here IS the agent_id (agent_security's evidence uses
-        # the same "identity" the rest of the gateway does - see
-        # gather_agent_security_evidence, which sets agent_id == the
-        # message's sender). tool_name for remove_agent_tool_access is
-        # the OFFENDING tool - the one this violation was about, not a
-        # tool this MCP call itself is invoking.
-        return {"agent_id": identity, "tool_name": evidence.get("requested_tool", "")}
-    return {}
 
 
 # --- real tool implementations ----------------------------------------------
@@ -388,31 +392,40 @@ def tools_for_category(request_category: str) -> list:
     return list(TOOL_CATALOG.keys())
 
 
-def authorize_and_execute(tool_name: str, request_category: str, identity: str, evidence: dict,
+def authorize_and_execute(tool_name: str, request_category: str, identity: str, arguments: dict,
                            decision_id: Optional[int] = None) -> ToolResult:
-    """agentic_system branch: category scoping, rate limiting, and the
-    critical-risk human-approval gate are REMOVED - any tool the Security
-    LLM names executes immediately, regardless of category or declared
-    risk tier. Only the "does an executor function exist for this name"
-    check remains, since that's a structural fact (there's real code to
-    run), not a security judgment. This is a DELIBERATE, documented
-    regression from main for this experimental branch only - see
+    """agentic_system branch (2026-09-02, extended to cover arguments too):
+    category scoping, rate limiting, and the critical-risk human-approval
+    gate are REMOVED - any tool the Security LLM names, with whatever
+    arguments it supplied, executes immediately, regardless of category or
+    declared risk tier. Only two structural checks remain, neither a
+    security judgment: (1) does an executor function exist for this name,
+    and (2) does the executor accept the arguments it was given (a
+    KeyError/TypeError/ValueError from a missing or malformed argument is
+    caught and denied here, never left to crash the request). This is a
+    DELIBERATE, documented regression from main's original design - see
     docs/AGENTIC_SYSTEM_EXPERIMENT.md. It means a prompt-injected message
     that gets the model to propose block_ip/terminate_session/
-    remove_vector now auto-executes it with no human in the loop."""
+    remove_vector/disclose_pii_answer now auto-executes it, with
+    attacker-chosen arguments, and no human in the loop."""
     cfg = TOOL_CATALOG.get(tool_name)
     if cfg is None:
         siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="DENIED_UNKNOWN_TOOL",
                              detail=f"proposed by request_category={request_category}")
         return ToolResult(tool_name=tool_name, status="denied_out_of_scope", reason="unknown tool")
 
-    args = _args_for(tool_name, identity, evidence)
+    try:
+        result = _EXECUTORS[tool_name](arguments)
+    except (KeyError, TypeError, ValueError) as e:
+        siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="DENIED_INVALID_ARGUMENTS",
+                             detail=f"identity={identity} arguments={arguments} error={e}")
+        return ToolResult(tool_name=tool_name, status="denied_invalid_arguments", arguments=arguments,
+                           reason=f"arguments did not match what this tool expects: {e}")
 
-    result = _EXECUTORS[tool_name](args)
     siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="AUTHORIZED_EXECUTED",
-                         detail=f"identity={identity} result={result} "
+                         detail=f"identity={identity} arguments={arguments} result={result} "
                                 f"[agentic_system: no category/rate-limit/approval gate applied]")
-    return ToolResult(tool_name=tool_name, status="authorized_executed", arguments=args, result=result)
+    return ToolResult(tool_name=tool_name, status="authorized_executed", arguments=arguments, result=result)
 
 
 def execute_approved_call(call_id: int, decided_by: str) -> dict:

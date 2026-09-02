@@ -98,6 +98,10 @@ consideration, so there is nothing left to "add".
   case-by-case check: CLAUDE.md section 8's "the LLM cannot bypass a
   deterministic security boundary" now holds by construction, not by
   remembering to re-run floor/ceiling over the right scope each time.
+  **No longer true as of the "agentic_system" merge below** - read that
+  section before relying on this paragraph; it's kept here as the
+  accurate historical record of this specific redesign, not of what
+  `main` currently enforces.
 - `security_gateway/detection.py::route_single`/`route_multi` (regex
   dispatch reading each skill's detection.yaml `routing:` rules) are kept
   as-is, and `supervisor_agent.py::route_authentication`/`route_files`/
@@ -105,7 +109,9 @@ consideration, so there is nothing left to "add".
   gateway.py's live pipeline no longer calls them for skill selection.
   They're independent, correct utilities in their own right, just
   disconnected from the module's primary path now that selection is the
-  Security LLM's job alone.
+  Security LLM's job alone. **Also no longer true** - both were deleted
+  outright as confirmed-dead code on 2026-09-02, see the entry near the
+  end of this document.
 
 **Honest tradeoff:** every request now feeds its category's FULL skill
 set into the Security LLM prompt (e.g. all 7 llm/rag skills for every
@@ -215,6 +221,49 @@ TLS/device fingerprinting, keystroke dynamics, WASM behavioral probes,
 distributed-botnet proxy-pool correlation, real email step-up
 verification (this app has no SMTP integration - `require_mfa` remains
 honestly scoped as an admin-clearable hold, not a real second factor).
+
+## The agentic_system experiment, merged to `main` (2026-09-02)
+
+At the user's explicit, repeated direction, every deterministic
+enforcement layer described above as a permanent guarantee -
+`detection.yaml` floor/ceiling, `policy.py::clamp_action`'s confidence
+gate, `mcp_gateway.py`'s category scoping/rate limiting/critical-tool
+human-approval gate, and `webapp_db.py`'s fixed `LOCKOUT_THRESHOLD`
+account lock - was removed. This was built and verified on an isolated
+`agentic_system` branch first, with the full rationale, every concrete
+behavioral consequence, and the exact test proving each one written up
+in `docs/AGENTIC_SYSTEM_EXPERIMENT.md` - read that document, not this
+paragraph, for the real picture. It was then merged onto `main` at the
+user's explicit instruction, overriding this project's own
+CLAUDE.md-derived design principle that these boundaries must never be
+LLM-bypassable. `main` now behaves as `AGENTIC_SYSTEM_EXPERIMENT.md`
+describes, not as the "Supervisor Agent becomes pure orchestration"
+section above describes - that section is accurate history, not
+accurate present-tense behavior.
+
+What's still true regardless: bcrypt password verification and logout
+are unchanged - there is no coherent agentic substitute for a one-way
+hash comparison, and logout has no decision to make.
+
+## Dead code removed: the deterministic regex router (2026-09-02)
+
+`security_gateway/supervisor_agent.py::route_authentication`/
+`route_files`/`route_chat`/`route_agents`, and the
+`security_gateway/detection.py::route_single`/`route_multi` functions
+they wrapped, were deleted outright - not just disconnected. They had
+been unreachable from `gateway.py`'s live pipeline since `all_skills_for()`
+took over skill selection (the section above), and had no other caller;
+this project's own convention (CLAUDE.md, and this session's practice
+throughout) is to delete confirmed-unused code rather than keep it as an
+unexercised fallback. `tests/test_authentication_skills.py` and
+`tests/test_rag_llm_skills.py` - built entirely around exercising these
+functions via skill fixture YAML files - were removed with them; the
+floor/ceiling assertions they also carried were preserved as direct
+`detection.apply_floor`/`apply_ceiling` calls in
+`tests/test_skills_and_router.py`, which don't need a routing layer to
+exist. `detection.yaml`'s `routing:` sections are inert metadata now,
+not stripped from the skill files - a record of the pattern each skill
+used to be dispatched on, not something any code reads anymore.
 
 ## Honest scope of the current build
 

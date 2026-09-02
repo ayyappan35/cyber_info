@@ -102,7 +102,7 @@ def test_search_external_web_tool_routes_through_mcp_gateway(monkeypatch, temp_s
     tool = chat_agent._make_search_external_web("alice")
     result = tool("what is python")
     assert result == {"abstract": "ok"}
-    assert called["args"] == ("search_external_web", "rag_security", "alice", {"external_query": "what is python"})
+    assert called["args"] == ("search_external_web", "rag_security", "alice", {"query": "what is python"})
 
 
 def test_search_external_web_tool_surfaces_denial_as_error(monkeypatch):

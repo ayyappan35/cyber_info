@@ -40,7 +40,7 @@ if _PIPELINES_DIR not in sys.path:
 
 from security_gateway import agent_registry, chain_detection, detection, mcp_gateway, policy, supervisor_agent
 from security_gateway import skills as skills_mod
-from security_gateway.decision import SecurityDecision
+from security_gateway.decision import SecurityDecision, ToolCall
 from security_gateway.llm_discussion import DiscussionFailed, discuss
 from security_gateway.mcp_tools import redis_tool, sandbox_tool, siem_tool
 
@@ -130,7 +130,11 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
         # Hallucinated/out-of-catalog tool names are dropped here rather
         # than failing the whole decision - a malformed tool proposal must
         # never take down an otherwise-valid ALLOW/MITIGATE/BLOCK verdict.
-        proposed_tools = [t for t in decision.required_tools if t in available_tools]
+        # `arguments` on each ToolCall are the LLM's own (security_gateway/
+        # mcp_gateway.py's former deterministic _args_for() builder was
+        # removed - see that module's docstring for the risk this is) -
+        # passed straight through, never re-derived from evidence here.
+        proposed_tools = [tc for tc in decision.required_tools if tc.name in available_tools]
     except DiscussionFailed as e:
         # Not a security judgment call to make agentic - there is no
         # model output to reason from when the call itself failed. A
@@ -158,13 +162,20 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
     sandbox_id = None
     blocked_identity = False
 
-    if effect == "tool_approval_required" and "disclose_pii_answer" not in proposed_tools:
+    if effect == "tool_approval_required" and "disclose_pii_answer" not in [tc.name for tc in proposed_tools]:
         # Deterministic, not LLM-proposed (skills/rag/pii-exposure's
         # response.yaml sets this effect specifically to bypass the
         # passive sandbox-and-forget path): whenever a skill's response.yaml
         # asks for real admin approval before disclosure, the tool
-        # proposal happens here regardless of what the LLM itself proposed.
-        proposed_tools = proposed_tools + ["disclose_pii_answer"]
+        # proposal happens here regardless of what the LLM itself proposed
+        # - arguments built from this request's own evidence, the same way
+        # every LLM-proposed tool call used to be before agentic_system's
+        # argument-construction change (see mcp_gateway.py's docstring).
+        proposed_tools = proposed_tools + [ToolCall(name="disclose_pii_answer", arguments={
+            "question": evidence.get("question", ""),
+            "context": evidence.get("retrieved_context", ""),
+            "pii_types_found": evidence.get("pii_types_found", []),
+        })]
 
     if effect in ("sandbox_and_continue", "sandbox_no_ingest", "refuse_and_sandbox", "reject_and_sandbox"):
         if sandbox_payload and sandbox_payload.get("kind") == "file":
@@ -198,13 +209,16 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
                          risk=("high" if action == "BLOCK" else "medium" if action == "MITIGATE" else "low"),
                          detail=f"skills={skill_ids} | {reasoning}")
 
-    # MCP Tool Authorization Gateway: each tool the LLM proposed goes
-    # through its own independent authorization (category scope, rate
-    # limit, requires_approval) - the LLM's proposal is never trusted as
-    # sufficient authorization by itself.
+    # MCP Tool Authorization Gateway: agentic_system branch - category
+    # scope/rate-limit/approval gating are removed there (see that
+    # module's docstring), and each tool call's `arguments` are now the
+    # LLM's own, not re-derived from evidence here. Only the "does this
+    # tool exist, do its arguments actually work" structural checks
+    # remain.
     tool_results = [
-        mcp_gateway.authorize_and_execute(name, request_category, identity, evidence, decision_id=decision_id)
-        for name in proposed_tools
+        mcp_gateway.authorize_and_execute(tc.name, request_category, identity, tc.arguments,
+                                           decision_id=decision_id)
+        for tc in proposed_tools
     ]
 
     # Attack-chain detection: purely a read over history just logged above

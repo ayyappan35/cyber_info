@@ -24,6 +24,19 @@ argued about in the abstract.
   proposes executes immediately. `tools_for_category()` now offers the
   ENTIRE tool catalog to every request category, not just the tools
   declared relevant to it.
+- **`security_gateway/mcp_gateway.py::_args_for()` (2026-09-02, removed
+  entirely)** - the deterministic per-tool-name argument builder, which
+  pulled every tool's arguments (`source_ip`, `username`, `document_id`,
+  ...) only from the current request's own trusted evidence/identity,
+  never from the model's own text. `security_gateway/decision.py`'s
+  `required_tools` is now `List[ToolCall]` (`name` + `arguments`, both
+  LLM-supplied) instead of `List[str]` (names only) - the Security LLM
+  now proposes the full tool call, not just which tool applies.
+  `TOOL_CATALOG` entries gained an `args_hint` field so the prompt
+  (`llm_discussion.py`) can tell the model what argument keys each tool
+  expects. `authorize_and_execute()` passes the LLM's `arguments` dict
+  straight to the tool's executor; a missing/malformed key is caught
+  there (`denied_invalid_arguments`) rather than crashing the request.
 - **`backend/webapp_db.py` / `backend/routers/auth_router.py`** -
   `LOCKOUT_THRESHOLD = 3`'s fixed-count auto-lock is removed.
   `lock_account()` is now the only way an account gets locked, called
@@ -100,6 +113,20 @@ that produces it.
   is also gone, so a model that over-blocks a legitimate question now
   stays BLOCKed with nothing to correct it either.
   (`test_gateway.py::test_pii_exposure_ceiling_no_longer_caps_llm_overcaution`)
+- A tool call's arguments are now the model's own, not re-derived from
+  this request's own trusted evidence - a prompt-injected message that
+  gets the model to propose `block_ip`/`terminate_session`/
+  `revoke_agent_credentials` can, in principle, name an argument
+  (`source_ip`, `username`, `agent_id`) belonging to a DIFFERENT request
+  or identity than the one actually under discussion, not just decide
+  THAT the current request's own target gets acted on. Live-verified
+  against the real Claude API (2026-09-02): a genuine 6-failed-attempt
+  brute-force request correctly produced `get_login_attempts`/
+  `get_ip_reputation`/`block_ip`/`require_mfa` calls, each grounded in
+  that request's own username/source_ip - the model did not misfire on
+  this ordinary case, but nothing structural stops it from doing so on a
+  crafted one, the same class of risk `required_tools` naming the tool
+  itself already carried before this change.
 
 ## What did NOT change
 
@@ -120,20 +147,28 @@ that produces it.
 
 ## Test suite status
 
-**282 tests passing** (full suite, `pytest tests/`). 30 of `main`'s
-tests asserted the deterministic behavior this branch removes (floor/
-ceiling firing regardless of LLM verdict, tool authorization denying
-out-of-scope/critical-risk proposals, confidence clamping, the fixed
-account-lock threshold) - all 30 were rewritten, not deleted, to assert
-the new (intentionally weaker) behavior directly instead, so the test
-suite itself is a living, checked record of every behavioral difference
-from `main`:
+**261 tests passing** (full suite, `pytest tests/`, as of the 2026-09-02
+`_args_for()` removal). Tests asserted the deterministic behavior this
+branch removes (floor/ceiling firing regardless of LLM verdict, tool
+authorization denying out-of-scope/critical-risk proposals, confidence
+clamping, the fixed account-lock threshold, and now deterministic
+per-tool-name argument construction) - each was rewritten, not deleted,
+to assert the new (intentionally weaker) behavior directly instead, so
+the test suite itself is a living, checked record of every behavioral
+difference from `main`'s original design:
 
-- `tests/test_gateway.py` - 11 tests rewritten (floor/ceiling/clamp
-  removal, effects on authentication/rag_security/file_security/
-  agent_security).
-- `tests/test_mcp_gateway.py` - 17 tests rewritten (category scoping,
-  rate limiting, and approval-gate removal across every affected tool).
+- `tests/test_gateway.py` - floor/ceiling/clamp removal, effects on
+  authentication/rag_security/file_security/agent_security, plus
+  `required_tools` now carrying LLM-supplied `ToolCall(name, arguments)`
+  instead of bare tool-name strings.
+- `tests/test_mcp_gateway.py` - category scoping, rate limiting, and
+  approval-gate removal across every affected tool, plus every
+  `authorize_and_execute()` call updated to pass real tool arguments
+  directly (the fourth positional argument is `arguments`, not
+  `evidence` to be transformed by the now-removed `_args_for()`).
+- `tests/test_chat_agent.py` - `search_external_web`'s argument key
+  changed from `external_query` to `query` (the executor's own key,
+  supplied directly now instead of being remapped by `_args_for()`).
 - `tests/test_webapp_db.py` - 3 tests rewritten
   (`LOCKOUT_THRESHOLD` removal, `lock_account()` as the new/only path).
 

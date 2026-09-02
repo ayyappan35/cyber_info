@@ -46,78 +46,6 @@ def test_unknown_skill_in_known_category_raises():
         skills.load_skill("authentication", "not-a-real-skill")
 
 
-def test_route_authentication_defaults_to_brute_force_on_no_signal():
-    assert supervisor_agent.route_authentication({}) == "brute-force"
-
-
-def test_route_authentication_selects_credential_stuffing():
-    evidence = {"distinct_usernames_from_source_5min": 5}
-    assert supervisor_agent.route_authentication(evidence) == "credential-stuffing"
-
-
-def test_route_authentication_selects_account_takeover():
-    evidence = {"this_attempt_success": True, "failed_attempts": 4}
-    assert supervisor_agent.route_authentication(evidence) == "account-takeover"
-
-
-def test_route_authentication_does_not_select_account_takeover_on_failure():
-    evidence = {"this_attempt_success": False, "failed_attempts": 10}
-    assert supervisor_agent.route_authentication(evidence) == "brute-force"
-
-
-def test_route_files_defaults_to_malicious_pdf():
-    assert supervisor_agent.route_files({"extension": ".md"}) == "malicious-pdf"
-    assert supervisor_agent.route_files({"extension": ".pdf"}) == "malicious-pdf"
-    assert supervisor_agent.route_files({"extension": ".xlsx"}) == "malicious-pdf"
-
-
-def test_route_files_selects_docx():
-    assert supervisor_agent.route_files({"extension": ".docx"}) == "malicious-docx"
-
-
-def test_route_files_selects_archive_bomb():
-    assert supervisor_agent.route_files({"extension": ".zip"}) == "archive-bomb"
-
-
-def test_route_chat_always_includes_baseline_defaults():
-    selected = supervisor_agent.route_chat({})
-    categories = {cat for cat, _sid in selected}
-    skill_ids = {sid for _cat, sid in selected}
-    assert categories == {"llm", "rag"}
-    assert "prompt-injection" in skill_ids
-    assert "rag-poisoning" in skill_ids
-
-
-def test_route_chat_adds_jailbreak_on_override_language():
-    selected = supervisor_agent.route_chat({"question_has_override_language": True})
-    skill_ids = {sid for _cat, sid in selected}
-    assert "jailbreak" in skill_ids
-    assert "prompt-injection" in skill_ids  # baseline default is NOT dropped when jailbreak fires
-
-
-def test_route_chat_adds_model_extraction_and_retrieval_manipulation():
-    selected = supervisor_agent.route_chat({
-        "question_has_extraction_language": True,
-        "question_targets_retrieval_params": True,
-    })
-    skill_ids = {sid for _cat, sid in selected}
-    assert "model-extraction" in skill_ids
-    assert "retrieval-manipulation" in skill_ids
-
-
-def test_route_chat_adds_pii_exposure_when_context_has_pii():
-    selected = supervisor_agent.route_chat({"context_contains_pii": True, "pii_types_found": ["phone"]})
-    skill_ids = {sid for _cat, sid in selected}
-    assert "pii-exposure" in skill_ids
-    assert "rag-poisoning" in skill_ids  # baseline still included alongside it
-
-
-def test_route_chat_no_pii_exposure_on_clean_context():
-    selected = supervisor_agent.route_chat({"context_contains_pii": False})
-    skill_ids = {sid for _cat, sid in selected}
-    assert "pii-exposure" not in skill_ids
-
-
 def test_pii_exposure_floor_forces_block_when_question_asks_for_it():
     action, reason = detection.apply_floor(
         "rag", "pii-exposure",
@@ -145,19 +73,6 @@ def test_pii_exposure_regression_unrelated_question_not_blocked():
         {"context_contains_pii": True, "question_requests_personal_info": False},
     )
     assert action is None
-
-
-def test_route_chat_adds_external_api_abuse_when_external_search_used():
-    selected = supervisor_agent.route_chat({"external_search_used": True})
-    skill_ids = {sid for _cat, sid in selected}
-    assert "external-api-abuse" in skill_ids
-    assert "rag-poisoning" in skill_ids  # baseline still included alongside it
-
-
-def test_route_chat_no_external_api_abuse_when_no_external_search():
-    selected = supervisor_agent.route_chat({"external_search_used": False})
-    skill_ids = {sid for _cat, sid in selected}
-    assert "external-api-abuse" not in skill_ids
 
 
 def test_external_api_abuse_floor_blocks_ssrf_shaped_query():
@@ -193,44 +108,6 @@ def test_external_api_abuse_floor_blocks_question_directing_exfiltration():
     )
     assert action == "BLOCK"
     assert reason
-
-
-def test_route_agents_always_includes_tool_abuse_baseline():
-    selected = supervisor_agent.route_agents({"tool_in_registered_set": True, "role_changed": False})
-    assert selected == [("agents", "tool-abuse")]
-
-
-def test_route_agents_adds_privilege_escalation_on_unaudited_role_change():
-    evidence = {
-        "tool_in_registered_set": True,
-        "role_changed": True,
-        "role_change_event_id": None,
-    }
-    selected = supervisor_agent.route_agents(evidence)
-    skill_ids = {sid for _cat, sid in selected}
-    assert skill_ids == {"tool-abuse", "privilege-escalation"}
-
-
-def test_route_agents_no_privilege_escalation_when_roles_match():
-    evidence = {
-        "tool_in_registered_set": True,
-        "role_changed": False,
-        "role_change_event_id": None,
-    }
-    selected = supervisor_agent.route_agents(evidence)
-    skill_ids = {sid for _cat, sid in selected}
-    assert skill_ids == {"tool-abuse"}
-
-
-def test_route_agents_no_privilege_escalation_when_role_change_audited():
-    evidence = {
-        "tool_in_registered_set": True,
-        "role_changed": True,
-        "role_change_event_id": 42,
-    }
-    selected = supervisor_agent.route_agents(evidence)
-    skill_ids = {sid for _cat, sid in selected}
-    assert skill_ids == {"tool-abuse"}
 
 
 # --- supervisor_agent.all_skills_for() - the Supervisor Agent's Skills

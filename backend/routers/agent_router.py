@@ -77,14 +77,27 @@ async def send_message(body: AgentMessageRequest, request: Request, admin: str =
     tool_result = None
     tool_denied_reason = None
     if result.action == "ALLOW":
-        # A second, independent authorization - passing the agent_security
-        # discussion says nothing about whether THIS tool is even reachable
-        # via the agent-to-agent path at all (mcp_gateway.py's TOOL_CATALOG
-        # allowed_categories is a structural boundary, not a judgment call -
-        # see get_ip_reputation's entry for why only that tool has
-        # "agent_security" in its allowed_categories today).
+        # agentic_system branch: mcp_gateway.py's TOOL_CATALOG
+        # allowed_categories is no longer enforced by authorize_and_execute()
+        # (see that function's own docstring) - passing the agent_security
+        # discussion is now the only gate before body.requested_tool
+        # executes, whatever it names. get_ip_reputation remains the only
+        # tool this catalog entry documents as intended for the
+        # agent-to-agent path; every other tool_name reaching here is a
+        # deliberate, documented regression from main's original
+        # category-scoped design, not something this endpoint still stops.
+        # This endpoint's only structurally-intended target is
+        # get_ip_reputation (see the comment above) - its one argument is
+        # built here, from this request's own evidence, the same way
+        # every tool's arguments used to be built centrally in
+        # mcp_gateway.py::_args_for() before that dispatch table was
+        # removed (see mcp_gateway.py's module docstring). A
+        # body.requested_tool naming any other tool will reach
+        # authorize_and_execute() with this same argument shape and most
+        # likely be denied there as invalid arguments, not executed.
         exec_result = mcp_gateway.authorize_and_execute(
-            body.requested_tool, "agent_security", body.sender_agent_id, evidence, decision_id=result.decision_id,
+            body.requested_tool, "agent_security", body.sender_agent_id,
+            {"source_ip": evidence.get("source_ip", "unknown")}, decision_id=result.decision_id,
         )
         if exec_result.status == "authorized_executed":
             tool_executed = True

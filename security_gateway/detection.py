@@ -1,11 +1,9 @@
-"""Evaluates detection.yaml's `routing` and `floor` rules against a live
-evidence dict. Deliberately NOT a generic expression language (no eval())
-- a structured field/op/value comparator only, so a YAML file can never
-become a code-injection surface in a security product. This is the
-deterministic layer CLAUDE.md section 8 allows ("hardcoded deterministic
-controls are allowed only for security boundaries and infrastructure
-safety") - routing/floor decisions are dispatch and hard minimums, never
-the ALLOW/MITIGATE/BLOCK judgment itself, which stays the LLM's job.
+"""Evaluates detection.yaml's `floor`/`ceiling` rules against a live
+evidence dict (`routing:` rule dispatch - route_single()/route_multi() -
+was removed; see supervisor_agent.py's module docstring). Deliberately
+NOT a generic expression language (no eval()) - a structured
+field/op/value comparator only, so a YAML file can never become a
+code-injection surface in a security product.
 
 Also loads detection.yaml's `patterns` section - the regex text a skill's
 own evidence signals are computed from. These used to live as hardcoded
@@ -132,51 +130,16 @@ def enforce_ceiling(proposed_action: str, ceiling_action: str) -> str:
     return proposed_action
 
 
-def route_single(category: str, evidence: dict) -> str:
-    """For categories with exactly one skill active per request
-    (authentication, files): checks each non-default skill's `routing`
-    rules in CATEGORY_SKILLS order, returns the first match, else the
-    skill marked `default: true`."""
-    default_skill = None
-    for skill_id in skills_mod.list_skills(category):
-        skill = skills_mod.load_skill(category, skill_id)
-        detection = skill["detection"]
-        if detection.get("default"):
-            default_skill = skill_id
-            continue
-        for rule in detection.get("routing", []):
-            if eval_condition(rule, evidence):
-                return skill_id
-    if default_skill is None:
-        raise ValueError(f"Category '{category}' has no skill marked default: true")
-    return default_skill
-
-
-def route_multi(category: str, evidence: dict) -> list:
-    """For categories where more than one skill can be relevant to the
-    same request at once (llm, rag - a single chat message can implicate
-    both): the `default: true` skill is ALWAYS included as the baseline
-    check (e.g. prompt-injection/rag-poisoning run on every message),
-    plus every non-default skill whose `routing` rule also matches -
-    escalation, not replacement (e.g. jailbreak language ADDS the
-    jailbreak skill alongside prompt-injection's baseline, it doesn't
-    substitute for it). Always returns at least one skill_id."""
-    selected = []
-    default_skill = None
-    for skill_id in skills_mod.list_skills(category):
-        skill = skills_mod.load_skill(category, skill_id)
-        detection = skill["detection"]
-        if detection.get("default"):
-            default_skill = skill_id
-            continue
-        rules = detection.get("routing", [])
-        if rules and any(eval_condition(r, evidence) for r in rules):
-            selected.append(skill_id)
-    if default_skill is None:
-        raise ValueError(f"Category '{category}' has no skill marked default: true")
-    selected.append(default_skill)
-    return selected
-
+# route_single()/route_multi() (regex-based skill dispatch reading each
+# skill's detection.yaml `routing:` rules) were removed here - their only
+# caller was security_gateway/supervisor_agent.py's own
+# route_authentication/route_files/route_chat/route_agents wrappers,
+# which were themselves removed as dead code once skill selection became
+# the Security LLM's job alone (see supervisor_agent.py's module
+# docstring). detection.yaml's `routing:` YAML sections are now inert
+# metadata - not read by any live code path - kept in place as
+# documentation of the pattern each skill used to be dispatched on,
+# rather than rewriting every skill file to remove them.
 
 # --- skill-owned regex patterns -------------------------------------------
 # Compiled once per field name and cached - skill content is loaded once

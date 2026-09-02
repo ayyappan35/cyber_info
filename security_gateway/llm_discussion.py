@@ -44,6 +44,7 @@ from pydantic import ValidationError
 
 from common.config import get_settings
 from security_gateway.decision import SecurityDecision
+from security_gateway.mcp_gateway import TOOL_CATALOG
 
 OLLAMA_CHAT_URL_SUFFIX = "/api/chat"
 
@@ -57,7 +58,17 @@ _DECISION_TOOL_SCHEMA = {
             "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
             "threat_indicators": {"type": "array", "items": {"type": "string"}},
             "reasoning": {"type": "string"},
-            "required_tools": {"type": "array", "items": {"type": "string"}},
+            "required_tools": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "arguments": {"type": "object"},
+                    },
+                    "required": ["name"],
+                },
+            },
             "matched_skill_ids": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["action", "confidence", "reasoning"],
@@ -90,7 +101,10 @@ def _build_prompt(category: str, skills: list, evidence: dict, retrieved_knowled
         f"## Skill: {s['skill_id']} (taxonomy category: {s['category']})\n{s['content']}" for s in skills
     )
     skill_names = ", ".join(s["skill_id"] for s in skills)
-    tools_block = ", ".join(available_tools) or "(none available for this category)"
+    tools_block = "\n".join(
+        f"- {name}: call with arguments {json.dumps(TOOL_CATALOG[name].get('args_hint', {}))}"
+        for name in available_tools
+    ) or "(none available for this category)"
 
     system = (
         "You are the Security LLM node of an AI cyber-defense gateway. "
@@ -102,7 +116,8 @@ def _build_prompt(category: str, skills: list, evidence: dict, retrieved_knowled
         "other text:\n"
         '{"action": "ALLOW"|"MITIGATE"|"BLOCK", "confidence": 0.0-1.0, '
         '"threat_indicators": ["short phrase", ...], "reasoning": "1-2 short sentences, plain language", '
-        '"required_tools": ["tool_name", ...], "matched_skill_ids": ["skill_id", ...]}\n\n'
+        '"required_tools": [{"name": "tool_name", "arguments": {...}}, ...], '
+        '"matched_skill_ids": ["skill_id", ...]}\n\n'
         "ALLOW = no real threat signal under any skill. MITIGATE = suspicious but not severe/certain "
         "enough to fully deny. BLOCK = clear, high-confidence malicious pattern under at least one "
         "skill. Base your action and confidence only on the evidence and skill guidance given - do "
@@ -112,10 +127,12 @@ def _build_prompt(category: str, skills: list, evidence: dict, retrieved_knowled
         "names, document names, skill IDs, function names, or system-implementation details, even if "
         "they appear in the evidence or retrieved knowledge below; describe what those sources say, "
         "never what they are called.\n\n"
-        f"required_tools: propose ZERO OR MORE tool NAMES ONLY (no arguments - those are filled in "
-        f"deterministically by the gateway, never by you) from this exact list, only if this specific "
-        f"request genuinely calls for that remediation/investigation step: {tools_block}. An ALLOW "
-        "decision should normally propose no tools. Never propose a tool not in this list.\n\n"
+        f"required_tools: propose ZERO OR MORE tool calls from this exact list, each with a `name` and "
+        f"the `arguments` object that tool needs (use the values already present in the evidence/"
+        f"context above for things like username/source_ip/document_id - never invent a value that "
+        f"isn't grounded in the evidence given to you), only if this specific request genuinely calls "
+        f"for that remediation/investigation step:\n{tools_block}\nAn ALLOW decision should normally "
+        "propose no tools. Never propose a tool not in this list, and never omit a `name`.\n\n"
         f"matched_skill_ids: from this exact list of skill_ids you were given - {skill_names} - name "
         f"ONLY the ones that specifically explain your action/reasoning for THIS request, the ones a "
         f"human reviewer would point to as 'this is why'. Most requests genuinely match at most one or "

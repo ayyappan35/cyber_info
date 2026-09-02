@@ -262,7 +262,7 @@ def _make_search_external_web(requester_username: str):
 
     def _call(query: str) -> dict:
         result = mcp_gateway.authorize_and_execute(
-            "search_external_web", "rag_security", requester_username, {"external_query": query},
+            "search_external_web", "rag_security", requester_username, {"query": query},
         )
         if result.status != "authorized_executed":
             return {"error": result.reason or f"search_external_web not authorized ({result.status})"}

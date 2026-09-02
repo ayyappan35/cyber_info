@@ -7,7 +7,7 @@ docs/SECURITY_GATEWAY.md), same split this project has used throughout
 """
 from common import security_db
 from security_gateway import gateway
-from security_gateway.decision import SecurityDecision
+from security_gateway.decision import SecurityDecision, ToolCall
 from security_gateway.llm_discussion import DiscussionFailed
 from security_gateway.mcp_tools import redis_tool, sandbox_tool
 
@@ -157,7 +157,7 @@ async def test_proposed_low_risk_tool_auto_executes(monkeypatch, temp_sqlite_pat
 
     async def fake_discuss(*a, **kw):
         return SecurityDecision(action="MITIGATE", confidence=0.7, threat_indicators=[], reasoning="check attempts",
-                                 required_tools=["get_login_attempts"])
+                                 required_tools=[ToolCall(name="get_login_attempts", arguments={"username": "grace"})])
     monkeypatch.setattr(gateway, "discuss", fake_discuss)
 
     result = await gateway.analyze("authentication", "grace", {"username": "grace"})
@@ -169,14 +169,18 @@ async def test_proposed_low_risk_tool_auto_executes(monkeypatch, temp_sqlite_pat
 async def test_proposed_critical_tool_now_auto_executes(monkeypatch, temp_sqlite_path):
     # agentic_system branch: block_ip's requires_approval gate is gone -
     # a single LLM-proposed tool call now blocks the IP immediately, no
-    # human sign-off. See docs/AGENTIC_SYSTEM_EXPERIMENT.md.
+    # human sign-off. See docs/AGENTIC_SYSTEM_EXPERIMENT.md. arguments
+    # are the LLM's own too (mcp_gateway.py's former deterministic
+    # _args_for() was removed) - the fake decision below supplies
+    # source_ip itself, exactly as a real model call now must.
     _patch_common(monkeypatch, temp_sqlite_path)
     import collections
     monkeypatch.setattr(gateway.mcp_gateway, "_tool_calls", collections.defaultdict(collections.deque))
 
     async def fake_discuss(*a, **kw):
         return SecurityDecision(action="BLOCK", confidence=0.95, threat_indicators=[], reasoning="spray attack",
-                                 required_tools=["block_ip"])
+                                 required_tools=[ToolCall(name="block_ip",
+                                                           arguments={"source_ip": "198.51.100.9"})])
     monkeypatch.setattr(gateway, "discuss", fake_discuss)
 
     result = await gateway.analyze("authentication", "heidi", {"username": "heidi", "source_ip": "198.51.100.9"})
@@ -189,7 +193,7 @@ async def test_hallucinated_tool_name_dropped_not_crashed(monkeypatch, temp_sqli
 
     async def fake_discuss(*a, **kw):
         return SecurityDecision(action="ALLOW", confidence=0.9, threat_indicators=[], reasoning="fine",
-                                 required_tools=["delete_the_database"])
+                                 required_tools=[ToolCall(name="delete_the_database")])
     monkeypatch.setattr(gateway, "discuss", fake_discuss)
 
     result = await gateway.analyze("authentication", "ivan", {"username": "ivan"})
@@ -204,7 +208,7 @@ async def test_out_of_category_tool_proposal_now_executes(monkeypatch, temp_sqli
 
     async def fake_discuss(*a, **kw):
         return SecurityDecision(action="ALLOW", confidence=0.9, threat_indicators=[], reasoning="fine",
-                                 required_tools=["remove_vector"])
+                                 required_tools=[ToolCall(name="remove_vector")])
     monkeypatch.setattr(gateway, "discuss", fake_discuss)
 
     result = await gateway.analyze("authentication", "judy", {"username": "judy"})

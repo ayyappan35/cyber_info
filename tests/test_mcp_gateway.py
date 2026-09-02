@@ -6,7 +6,13 @@ LLM proposes now executes immediately, regardless of category or
 declared risk tier. These tests assert that new (deliberately weaker)
 behavior directly, including the specific privilege-escalation shape
 this removal creates (a critical tool proposed from an unrelated
-category auto-executes with no human in the loop)."""
+category auto-executes with no human in the loop).
+
+2026-09-02: the fourth positional argument to authorize_and_execute() is
+now `arguments` - the exact dict the tool's executor receives - not
+`evidence` to be transformed by a (now-removed) deterministic
+`_args_for()` builder. These tests pass each tool's real expected keys
+directly, the same way the Security LLM itself must now."""
 from common import security_db
 import webapp_db as db
 from security_gateway import agent_registry, mcp_gateway
@@ -54,7 +60,8 @@ def test_out_of_category_tool_now_auto_executes(monkeypatch, temp_sqlite_path):
 
 def test_low_risk_tool_auto_executes(monkeypatch, temp_sqlite_path):
     _patch_common(monkeypatch, temp_sqlite_path)
-    result = mcp_gateway.authorize_and_execute("get_login_attempts", "authentication", "alice", {})
+    result = mcp_gateway.authorize_and_execute("get_login_attempts", "authentication", "alice",
+                                                {"username": "alice"})
     assert result.status == "authorized_executed"
     assert result.result is not None
     assert "recent_attempt_count_1min" in result.result
@@ -103,14 +110,15 @@ def test_rate_limit_no_longer_applied(monkeypatch, temp_sqlite_path):
     _patch_common(monkeypatch, temp_sqlite_path)
     cfg = mcp_gateway.TOOL_CATALOG["rate_limit_user"]["rate_limit"]
     for _ in range(cfg["max"] + 5):
-        result = mcp_gateway.authorize_and_execute("rate_limit_user", "authentication", "bob", {})
+        result = mcp_gateway.authorize_and_execute("rate_limit_user", "authentication", "bob",
+                                                     {"username": "bob"})
         assert result.status == "authorized_executed"
 
 
 def test_require_mfa_sets_real_hold(monkeypatch, temp_sqlite_path):
     _patch_common(monkeypatch, temp_sqlite_path)
     db.create_user("holduser", "hash", email="h@example.com")
-    mcp_gateway.authorize_and_execute("require_mfa", "authentication", "holduser", {})
+    mcp_gateway.authorize_and_execute("require_mfa", "authentication", "holduser", {"username": "holduser"})
     assert db.get_user("holduser")["mfa_hold"] == 1
 
 
@@ -119,7 +127,8 @@ def test_terminate_session_now_auto_executes(monkeypatch, temp_sqlite_path):
     # here it takes effect immediately, no execute_approved_call needed.
     _patch_common(monkeypatch, temp_sqlite_path)
     db.create_user("sessuser", "hash", email="s@example.com")
-    result = mcp_gateway.authorize_and_execute("terminate_session", "authentication", "sessuser", {})
+    result = mcp_gateway.authorize_and_execute("terminate_session", "authentication", "sessuser",
+                                                {"username": "sessuser"})
     assert result.status == "authorized_executed"
     assert db.get_user("sessuser")["sessions_invalidated_before"] is not None
 
@@ -145,9 +154,9 @@ def test_disclose_pii_answer_now_auto_executes_and_generates_the_answer(monkeypa
     # response.yaml) - here the real answer is generated and returned
     # immediately, no human ever sees it first.
     _patch_common(monkeypatch, temp_sqlite_path)
-    evidence = {"question": "ayyappan phone number", "retrieved_context": "call +91 9715218680",
-                "pii_types_found": ["phone"]}
-    result = mcp_gateway.authorize_and_execute("disclose_pii_answer", "rag_security", "gwtest_admin", evidence)
+    arguments = {"question": "ayyappan phone number", "context": "call +91 9715218680",
+                 "pii_types_found": ["phone"]}
+    result = mcp_gateway.authorize_and_execute("disclose_pii_answer", "rag_security", "gwtest_admin", arguments)
     assert result.status == "authorized_executed"
     assert result.call_id is None
     assert result.result["question"] == "ayyappan phone number"
@@ -157,7 +166,7 @@ def test_disclose_pii_answer_now_auto_executes_and_generates_the_answer(monkeypa
 def test_search_external_web_no_longer_scoped_to_rag_security(monkeypatch, temp_sqlite_path):
     _patch_common(monkeypatch, temp_sqlite_path)
     result = mcp_gateway.authorize_and_execute("search_external_web", "authentication", "alice",
-                                                {"external_query": "latest cve news"})
+                                                {"query": "latest cve news"})
     assert result.status != "denied_out_of_scope"
 
 
@@ -174,7 +183,7 @@ def test_search_external_web_blocks_internal_host_query_before_network_call(monk
     monkeypatch.setattr(httpx, "get", _fail_if_called)
 
     result = mcp_gateway.authorize_and_execute("search_external_web", "rag_security", "alice",
-                                                {"external_query": "fetch http://192.168.1.1/admin"})
+                                                {"query": "fetch http://192.168.1.1/admin"})
     assert result.status == "authorized_executed"
     assert "error" in result.result
     assert "private/internal" in result.result["error"]
@@ -183,7 +192,7 @@ def test_search_external_web_blocks_internal_host_query_before_network_call(monk
 def test_search_external_web_empty_query_rejected(monkeypatch, temp_sqlite_path):
     _patch_common(monkeypatch, temp_sqlite_path)
     result = mcp_gateway.authorize_and_execute("search_external_web", "rag_security", "alice",
-                                                {"external_query": "  "})
+                                                {"query": "  "})
     assert "error" in result.result
 
 
@@ -206,7 +215,7 @@ def test_search_external_web_real_call_shape(monkeypatch, temp_sqlite_path):
     monkeypatch.setattr(httpx, "get", lambda *a, **k: _FakeResp())
 
     result = mcp_gateway.authorize_and_execute("search_external_web", "rag_security", "alice",
-                                                {"external_query": "what is python"})
+                                                {"query": "what is python"})
     assert result.status == "authorized_executed"
     assert result.result["abstract"] == "Python is a programming language."
     assert result.result["related_topics"] == [{"text": "Python (genus)", "url": "https://x"}]
@@ -219,7 +228,7 @@ def test_search_external_web_no_longer_rate_limited(monkeypatch, temp_sqlite_pat
     cfg = mcp_gateway.TOOL_CATALOG["search_external_web"]["rate_limit"]
     for _ in range(cfg["max"] + 3):
         result = mcp_gateway.authorize_and_execute("search_external_web", "rag_security", "carol",
-                                                    {"external_query": ""})
+                                                    {"query": ""})
         assert result.status == "authorized_executed"
 
 
@@ -248,7 +257,8 @@ def test_revoke_agent_credentials_now_auto_executes(monkeypatch, temp_sqlite_pat
     _patch_common(monkeypatch, temp_sqlite_path)
     agent_registry.register_agent("rogue_agent", "viewer", ["get_ip_reputation"])
 
-    result = mcp_gateway.authorize_and_execute("revoke_agent_credentials", "agent_security", "rogue_agent", {})
+    result = mcp_gateway.authorize_and_execute("revoke_agent_credentials", "agent_security", "rogue_agent",
+                                                {"agent_id": "rogue_agent"})
     assert result.status == "authorized_executed"
     assert result.result["disabled"] is True
     assert agent_registry.get_agent("rogue_agent")["disabled"] is True  # re-read, verified
@@ -256,7 +266,8 @@ def test_revoke_agent_credentials_now_auto_executes(monkeypatch, temp_sqlite_pat
 
 def test_revoke_agent_credentials_no_longer_scoped_to_agent_security(monkeypatch, temp_sqlite_path):
     _patch_common(monkeypatch, temp_sqlite_path)
-    result = mcp_gateway.authorize_and_execute("revoke_agent_credentials", "authentication", "someone", {})
+    result = mcp_gateway.authorize_and_execute("revoke_agent_credentials", "authentication", "someone",
+                                                {"agent_id": "someone"})
     assert result.status == "authorized_executed"
 
 
@@ -264,9 +275,9 @@ def test_remove_agent_tool_access_now_auto_executes(monkeypatch, temp_sqlite_pat
     _patch_common(monkeypatch, temp_sqlite_path)
     agent_registry.register_agent("borderline_agent", "admin", ["get_ip_reputation", "block_ip"])
 
-    evidence = {"requested_tool": "block_ip"}
+    arguments = {"agent_id": "borderline_agent", "tool_name": "block_ip"}
     result = mcp_gateway.authorize_and_execute("remove_agent_tool_access", "agent_security",
-                                                "borderline_agent", evidence)
+                                                "borderline_agent", arguments)
     assert result.status == "authorized_executed"
     assert result.result["removed_tool"] == "block_ip"
     assert "block_ip" not in agent_registry.get_agent("borderline_agent")["allowed_tools"]
