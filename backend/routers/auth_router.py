@@ -25,6 +25,21 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 MIN_PASSWORD_LENGTH = 8
 
 
+def _mask_email(email: str) -> str:
+    """"v.ayyappann@gmail.com" -> "v.a*******n@gmail.com" - keeps the
+    first 2 and last 1 characters of the local part so the account owner
+    can recognize their own address, masks everything else. Only used on
+    the mfa_required response - enough to tell the user where to look,
+    not enough for someone who only knows the username to learn the full
+    address."""
+    local, _, domain = email.partition("@")
+    if len(local) <= 3:
+        masked = local[0] + "*" * max(len(local) - 1, 1)
+    else:
+        masked = local[:2] + "*" * (len(local) - 3) + local[-1]
+    return f"{masked}@{domain}" if domain else masked
+
+
 @router.post("/signup", response_model=LoginResponse)
 def signup(body: SignupRequest):
     username = body.username.strip()
@@ -125,7 +140,9 @@ async def login(body: LoginRequest, request: Request):
         # still-valid code is still another prompt the real owner has to
         # deal with).
         redis_tool.record_mfa_challenge(username)
-        return LoginResponse(username=user["username"], role=user["role"], mfa_required=True)
+        masked_email = _mask_email(user["email"]) if user.get("email") else None
+        return LoginResponse(username=user["username"], role=user["role"], mfa_required=True,
+                              masked_email=masked_email)
 
     token = auth.create_access_token(user["username"])
     return LoginResponse(access_token=token, username=user["username"], role=user["role"])

@@ -14,7 +14,10 @@ export default function Login() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState("");
+  const [showOtp, setShowOtp] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState("");
   // "credentials" | "otp" - flips to "otp" when the security gateway has
   // put this account on an account-takeover hold (a correct password
   // alone isn't enough; the emailed one-time code still is).
@@ -29,6 +32,7 @@ export default function Login() {
     try {
       const result = await login(username, password);
       if (result.mfaRequired) {
+        setMaskedEmail(result.maskedEmail || "");
         setStep("otp");
       } else {
         navigate("/chat");
@@ -102,13 +106,24 @@ export default function Login() {
                 </label>
                 <label style={styles.label}>
                   Password
-                  <input
-                    style={styles.input}
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                  <div style={styles.inputWrap}>
+                    <input
+                      style={{ ...styles.input, ...styles.inputWithButton }}
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      style={styles.eyeButton}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? "🙈" : "👁"}
+                    </button>
+                  </div>
                 </label>
 
                 {error && <div style={styles.error}>{error}</div>}
@@ -127,22 +142,35 @@ export default function Login() {
               <h2 style={styles.title}>Verify it's you</h2>
               <p style={styles.subtitle}>
                 This account was flagged for a suspicious sign-in pattern. We
-                emailed a 6-digit code to the address on file - enter it below
-                to finish signing in.
+                emailed a 6-digit code to{" "}
+                {maskedEmail ? <b style={styles.emailHighlight}>{maskedEmail}</b> : "the address on file"} -
+                enter it below to finish signing in.
               </p>
 
               <form onSubmit={handleVerifyOtp} style={styles.form}>
                 <label style={styles.label}>
                   Verification code
-                  <input
-                    style={styles.input}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    inputMode="numeric"
-                    maxLength={6}
-                    autoFocus
-                    required
-                  />
+                  <div style={styles.inputWrap}>
+                    <input
+                      style={{ ...styles.input, ...styles.inputWithButton }}
+                      type={showOtp ? "text" : "password"}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoFocus
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOtp((v) => !v)}
+                      style={styles.eyeButton}
+                      aria-label={showOtp ? "Hide code" : "Show code"}
+                      tabIndex={-1}
+                    >
+                      {showOtp ? "🙈" : "👁"}
+                    </button>
+                  </div>
                 </label>
 
                 {error && <div style={styles.error}>{error}</div>}
@@ -159,6 +187,8 @@ export default function Login() {
                   onClick={() => {
                     setStep("credentials");
                     setOtp("");
+                    setShowOtp(false);
+                    setMaskedEmail("");
                     setError("");
                   }}
                   style={styles.linkButton}
@@ -309,6 +339,30 @@ const styles = {
     outline: "none",
     color: "var(--text-primary)",
     background: "var(--bg)",
+    width: "100%",
+  },
+  inputWrap: {
+    position: "relative",
+    display: "flex",
+  },
+  inputWithButton: {
+    paddingRight: 40,
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 4,
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 16,
+    lineHeight: 1,
+    padding: 6,
+    borderRadius: 6,
+  },
+  emailHighlight: {
+    color: "var(--text-primary)",
   },
   button: {
     marginTop: 6,

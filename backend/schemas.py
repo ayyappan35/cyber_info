@@ -23,6 +23,11 @@ class LoginResponse(BaseModel):
     username: str
     role: str = "user"
     mfa_required: bool = False
+    # Only set alongside mfa_required=True - the registered email the OTP
+    # was sent to, partially masked (e.g. "v.a***n@gmail.com") so the
+    # login screen can tell the user where to look without exposing the
+    # full address to anyone who only knows the username.
+    masked_email: Optional[str] = None
 
 
 class VerifyOtpRequest(BaseModel):

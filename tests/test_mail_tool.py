@@ -30,3 +30,41 @@ def test_send_otp_email_falls_back_to_local_outbox(monkeypatch, temp_sqlite_path
     assert len(mail) == 1
     assert "123456" in mail[0]["body"]
     assert "someuser" in mail[0]["body"]
+
+
+def test_send_otp_email_survives_a_real_smtp_failure(monkeypatch, temp_sqlite_path):
+    # Real, observed failure (2026-09-03): a bad recipient domain
+    # (smtplib.SMTPRecipientsRefused) propagating out of this call would
+    # crash require_mfa mid-execution, after it already wrote mfa_hold/
+    # otp_hash to the account - turning a real user's login into a 500
+    # with no code delivered anywhere. This must degrade to the local
+    # outbox instead, never raise.
+    monkeypatch.setattr(db, "DB_PATH", temp_sqlite_path)
+    db.init_db()
+    monkeypatch.setattr(mail_tool, "SMTP_HOST", "smtp.example.com")
+
+    class _FakeServer:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self):
+            pass
+
+        def login(self, *a):
+            pass
+
+        def send_message(self, *a):
+            import smtplib
+            raise smtplib.SMTPRecipientsRefused({"bad@example.com": (501, b"refused")})
+
+    monkeypatch.setattr(mail_tool.smtplib, "SMTP", lambda *a, **kw: _FakeServer())
+
+    result = mail_tool.send_otp_email("bad@example.com", "someuser", "654321")
+
+    assert result == {"delivered_via": "smtp_failed", "to_email": "bad@example.com"}
+    mail = db.list_outbox(to_email="bad@example.com")
+    assert len(mail) == 1
+    assert "654321" in mail[0]["body"]

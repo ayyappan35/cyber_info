@@ -17,7 +17,7 @@ import auth
 from common import security_db
 import webapp_db as db
 from security_gateway import agent_registry, mcp_gateway
-from security_gateway.mcp_tools import redis_tool
+from security_gateway.mcp_tools import mail_tool, redis_tool
 
 
 def _patch_common(monkeypatch, temp_sqlite_path):
@@ -27,6 +27,10 @@ def _patch_common(monkeypatch, temp_sqlite_path):
     db.init_db()
     monkeypatch.setattr(redis_tool, "REDIS_URL", "")
     monkeypatch.setattr(redis_tool, "_client", None)
+    # Force the local-outbox path regardless of the developer's own .env -
+    # a real SMTP_HOST configured for manual testing must never make these
+    # tests attempt a genuine network send.
+    monkeypatch.setattr(mail_tool, "SMTP_HOST", "")
     import collections
     monkeypatch.setattr(mcp_gateway, "_tool_calls", collections.defaultdict(collections.deque))
 

@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [o.strip().rstrip("/") for o in self.cors_allowed_origins.split(",") if o.strip()]
 
+    # --- Mail (account-takeover OTP delivery, security_gateway/mcp_tools/mail_tool.py) ---
+    smtp_host: str = Field(default="")
+    smtp_port: int = Field(default=587)
+    smtp_user: str = Field(default="")
+    smtp_password: str = Field(default="")
+    smtp_from: str = Field(default="security@cyber-defense.local")
+    smtp_use_tls: bool = Field(default=True)
+
     # --- Observability (CLAUDE.md section 15) ---
     log_level: str = Field(default="INFO")
     tracing_backend: Literal["none", "mlflow", "langsmith"] = Field(default="none")

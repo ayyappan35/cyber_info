@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     // Correct password, but the account is on an account-takeover OTP
     // hold (security_gateway/mcp_gateway.py's require_mfa) - no token
     // yet, the caller (Login.jsx) needs to prompt for the emailed code.
-    if (data.mfa_required) return { mfaRequired: true, username: data.username };
+    if (data.mfa_required) return { mfaRequired: true, username: data.username, maskedEmail: data.masked_email };
     persistSession(data);
     return { mfaRequired: false };
   }, []);

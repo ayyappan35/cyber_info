@@ -1,18 +1,20 @@
-import { GitBranch, LogOut, MessageSquare, TestTube2 } from "lucide-react";
+import { GitBranch, KeyRound, LogOut, MessageSquare, TestTube2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { BASE_URL } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
-// The very first screen after login - just 3 entry points, nothing else.
-// Chat navigates into the SPA's chat app; Pipeline/Scenario are static
-// docs served by the backend (backend/main.py's /docs-pages mount) and
-// redirect this same tab there, not a new one.
+// The very first screen after login - just a few entry points, nothing else.
+// Chat navigates into the SPA's chat app; Pipeline/Scenario/Login Scenario
+// are static docs served by the backend (backend/main.py's /docs-pages
+// mount) and redirect this same tab there, not a new one.
 const CARDS = [
   { key: "chat", label: "Ask & Chat", desc: "Ask a detection or response question", icon: MessageSquare },
   { key: "pipeline", label: "Pipeline", desc: "Full architecture pipeline diagram",
     icon: GitBranch, href: `${BASE_URL}/docs-pages/architecture_flowchart.html` },
-  { key: "scenario", label: "Scenario", desc: "10 real attack questions, live gateway results",
+  { key: "scenario", label: "A2A & LLM Defense Scenario", desc: "10 real attack questions, live gateway results",
     icon: TestTube2, href: `${BASE_URL}/docs-pages/live_test_results.html` },
+  { key: "login-scenario", label: "Login Scenario", desc: "4 authentication skills, live step by step",
+    icon: KeyRound, href: `${BASE_URL}/docs-pages/login_auth_skills_live_test.html` },
 ];
 
 export default function Landing() {
@@ -42,7 +44,7 @@ export default function Landing() {
         </span>
         <h1 className="font-serif text-3xl text-ink">Where would you like to go?</h1>
 
-        <div className="mt-10 grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mt-10 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {CARDS.map((card) => {
             const Icon = card.icon;
             const body = (

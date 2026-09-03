@@ -541,14 +541,14 @@
     <div class="res ok">200 → {"username":"grace_ato_live","role":"user","mfa_required":false, "access_token":"eyJ…"}</div>
   </div>
   <div class="httpcard">
-    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹wrong›"}  ×3</div>
-    <div class="res err">401 → {"detail":"Invalid username or password"}  (×3, identical each time)</div>
+    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹wrong›"}  ×4</div>
+    <div class="res err">401 → {"detail":"Invalid username or password"}  (×4, identical each time)</div>
   </div>
 
-  <h4 id="ato-detect" style="font-size:0.94rem; margin:26px 0 6px;">4th attempt, correct password — takeover pattern fires</h4>
-  <p class="scenario-sub">The 4th submit uses the account's real password. This is the exact signature
+  <h4 id="ato-detect" style="font-size:0.94rem; margin:26px 0 6px;">5th attempt, correct password — takeover pattern fires</h4>
+  <p class="scenario-sub">The 5th submit uses the account's real password. This is the exact signature
     <code>detection.yaml</code>'s routing rule describes: <code>this_attempt_success=true</code> AND
-    <code>failed_attempts≥3</code> — offered to the Security LLM as a candidate, never auto-decided by
+    <code>failed_attempts≥4</code> — offered to the Security LLM as a candidate, never auto-decided by
     that rule alone (account-takeover has no numeric floor of its own; see the SKILL.md).</p>
 
   <div class="timeline">
@@ -556,7 +556,7 @@
       <div class="node">1</div>
       <div class="card">
         <h3>4th submit, this one correct <span class="pill ui">UI</span></h3>
-        <p><code>grace_ato_live</code> typed the wrong password 3 times, then the 4th submit is the real one.</p>
+        <p><code>grace_ato_live</code> typed the wrong password 4 times, then the 5th submit is the real one.</p>
       </div>
     </div>
     <div class="step gate">
@@ -573,7 +573,7 @@
       <div class="card">
         <h3>Evidence gathered <span class="pill gate">gather_authentication_evidence()</span></h3>
         <div class="rowgrid">
-          <span class="k">failed_attempts</span><span class="v">3</span>
+          <span class="k">failed_attempts</span><span class="v">4</span>
           <span class="k">this_attempt_success</span><span class="v">true</span>
           <span class="k">recent_attempt_count_1min</span><span class="v">4</span>
           <span class="k">account_exists</span><span class="v">true</span>
@@ -586,7 +586,7 @@
         <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
         <div class="reasoning"><b>Live reasoning (captured verbatim)</b>"A login just succeeded on this account right after a short burst of failed attempts, which is the classic pattern of a takeover attempt finally guessing correctly rather than an obvious single typo. The failure count is modest and not extreme, so mitigation with a hold pending verification is warranted rather than an outright block."</div>
         <div class="indicators">
-          <span>successful login following elevated failed_attempts (3) and recent_attempt_count_1min=4 on same account</span>
+          <span>successful login following elevated failed_attempts (4) and recent_attempt_count_1min=4 on same account</span>
           <span>username naming suggests test/simulated ATO scenario</span>
         </div>
         <div class="skillpills"><span class="skillpill">account-takeover</span></div>
