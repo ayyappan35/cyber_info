@@ -11,9 +11,20 @@
 # its proposed action is downgraded one step (BLOCK->MITIGATE,
 # MITIGATE->ALLOW-with-log) rather than enforced at full strength - an
 # uncertain model should not get to fully block a legitimate request.
+#
+# skills: every skill_id security_gateway/supervisor_agent.py's
+# all_skills_for() offers the Security LLM for this request_category
+# (its own taxonomy - see that module's _REQUEST_CATEGORY_TAXONOMY) -
+# documentation only, never read by policy.py itself. The actions/
+# min_confidence_to_enforce below apply to ALL of them uniformly; a
+# specific skill can override min_confidence_to_enforce and each
+# action's effect/config in its own skills/<category>/<skill_id>/
+# response.yaml (security_gateway/policy.py::_skill_response()) - see
+# e.g. skills/authentication/credential-stuffing/response.yaml's longer
+# block_ttl_seconds than brute-force's category default below.
 categories:
   authentication:
-    skill: brute_force
+    skills: [account-takeover, brute-force, credential-stuffing, password-spraying]
     actions:
       ALLOW:
         enabled: true
@@ -27,7 +38,8 @@ categories:
     min_confidence_to_enforce: 0.55
 
   rag_security:
-    skill: rag_poisoning
+    skills: [jailbreak, model-extraction, prompt-injection, external-api-abuse, pii-exposure,
+             rag-poisoning, retrieval-manipulation]
     actions:
       ALLOW:
         enabled: true
@@ -40,7 +52,7 @@ categories:
     min_confidence_to_enforce: 0.5
 
   file_security:
-    skill: malicious_pdf
+    skills: [archive-bomb, malicious-docx, malicious-pdf]
     actions:
       ALLOW:
         enabled: true
@@ -53,7 +65,11 @@ categories:
     min_confidence_to_enforce: 0.5
 
   agent_security:
-    skill: tool_abuse
+    # intent-drift is offered to the Security LLM same as the other two
+    # (all_skills_for() doesn't filter by wiring status) but stays
+    # unwired - see skills/agents/intent-drift/SKILL.md for why (needs a
+    # goal_alignment_score this build doesn't compute).
+    skills: [intent-drift, privilege-escalation, tool-abuse]
     actions:
       ALLOW:
         enabled: true

@@ -19,7 +19,7 @@ _STEP_DOWN = {"BLOCK": "MITIGATE", "MITIGATE": "ALLOW", "ALLOW": "ALLOW"}
 
 
 class _CategoryPolicy(BaseModel):
-    skill: str
+    skills: list[str]
     actions: dict
     min_confidence_to_enforce: float
 
