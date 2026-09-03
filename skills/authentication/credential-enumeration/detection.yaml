@@ -1,0 +1,27 @@
+skill_id: credential-enumeration
+category: authentication
+
+signals:
+  - id: account_exists
+    type: boolean
+    description: Whether the attempted username is a real account (webapp_db.py)
+  - id: nonexistent_account_attempts_from_source_5min
+    type: integer
+    description: Attempts from this source IP against usernames that do NOT exist, in the trailing 5 minutes (redis_tool)
+
+routing:
+  - field: account_exists
+    op: eq
+    value: false
+    and:
+      field: nonexistent_account_attempts_from_source_5min
+      op: gte
+      value: 3
+    reason: "3+ attempts against nonexistent accounts from one source in 5 minutes looks like reconnaissance (probing which usernames are valid), not a single mistyped username."
+
+# No floor - see SKILL.md's "what security boundaries apply": this branch
+# doesn't enforce floors at all (security_gateway/gateway.py takes the
+# LLM's own action unconditionally), and even on a build that did, there
+# is no unambiguous numeric threshold here the way password-spraying's
+# 5-shared-passwords signal has one - a legitimate typo'd username from a
+# real user is genuinely indistinguishable from a single enumeration probe.

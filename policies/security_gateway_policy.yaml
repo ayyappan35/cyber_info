@@ -24,7 +24,8 @@
 # block_ttl_seconds than brute-force's category default below.
 categories:
   authentication:
-    skills: [account-takeover, brute-force, credential-stuffing, password-spraying]
+    skills: [account-takeover, brute-force, credential-stuffing, password-spraying,
+             credential-enumeration, impossible-travel, new-device, mfa-fatigue]
     actions:
       ALLOW:
         enabled: true

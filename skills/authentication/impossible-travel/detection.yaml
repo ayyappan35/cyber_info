@@ -1,0 +1,20 @@
+skill_id: impossible-travel
+category: authentication
+
+signals:
+  - id: distinct_source_ips_for_account_15min
+    type: integer
+    description: Distinct source IPs this account has been attempted from in the trailing 15 minutes (redis_tool) - a proxy for real geolocation, which this build does not have (see SKILL.md)
+  - id: this_attempt_success
+    type: boolean
+
+routing:
+  - field: distinct_source_ips_for_account_15min
+    op: gte
+    value: 2
+    reason: "2+ distinct source IPs for one account in 15 minutes is the base signal - worth discussing regardless of whether this specific attempt succeeded, since an in-progress attack often shows failures from the new IP before a success."
+
+# No floor - see SKILL.md: without real geolocation there is no
+# unambiguous numeric threshold (unlike password-spraying's shared-password
+# count), since a VPN reconnect or a mobile/wifi handoff can also produce
+# 2-3 distinct IPs for a single legitimate user in a short window.

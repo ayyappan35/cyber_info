@@ -10,12 +10,14 @@ decides whether the account gets locked (webapp_db.py::lock_account()),
 replacing main's fixed LOCKOUT_THRESHOLD=3 rule. See
 docs/AGENTIC_SYSTEM_EXPERIMENT.md.
 """
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 import auth
 import webapp_db as db
-from schemas import LoginRequest, LoginResponse, LogoutResponse, MeResponse, SignupRequest
-from security_gateway import gateway
+from schemas import LoginRequest, LoginResponse, LogoutResponse, MeResponse, SignupRequest, VerifyOtpRequest
+from security_gateway import gateway, mcp_gateway
 from security_gateway.mcp_tools import redis_tool
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -51,6 +53,7 @@ def signup(body: SignupRequest):
 async def login(body: LoginRequest, request: Request):
     username = body.username
     source_ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "")
 
     if redis_tool.is_blocked(username, "authentication"):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
@@ -65,13 +68,6 @@ async def login(body: LoginRequest, request: Request):
     user = db.get_user(username)
     account_exists = user is not None
     locked = bool(user["locked"]) if user else False
-    # require_mfa (security_gateway/mcp_gateway.py) - an admin-clearable
-    # hold, not a real second-factor challenge (this build has none) -
-    # see that tool's docstring for why this scoping is honest rather
-    # than a fake MFA flow.
-    if user is not None and user.get("mfa_hold"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN,
-                             "This account is on hold pending security review - contact an admin.")
 
     success = False
     if user is not None and not locked:
@@ -87,7 +83,7 @@ async def login(body: LoginRequest, request: Request):
     evidence = gateway.gather_authentication_evidence(
         username=username, source_ip=source_ip, account_exists=account_exists,
         failed_attempts=(user["failed_attempts"] if user else 0), locked=locked,
-        this_attempt_success=success, password=body.password,
+        this_attempt_success=success, password=body.password, user_agent=user_agent,
     )
     result = await gateway.analyze("authentication", username, evidence, log=request.app.state.log)
 
@@ -110,6 +106,57 @@ async def login(body: LoginRequest, request: Request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid username or password")
 
     db.reset_failed_login(username)
+
+    # require_mfa (security_gateway/mcp_gateway.py) - only checked AFTER a
+    # correct password, so an attacker without the password never learns
+    # an account is under an account-takeover hold. The real challenge
+    # (emailed OTP) is the same one require_mfa already sent when it put
+    # the account on hold; a fresh code is only issued here if that one
+    # expired before the user got back to this screen.
+    if user.get("mfa_hold"):
+        now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        otp_still_valid = bool(user.get("mfa_otp_hash")) and bool(user.get("mfa_otp_expires_at")) \
+            and user["mfa_otp_expires_at"] > now_iso
+        if not otp_still_valid:
+            mcp_gateway.authorize_and_execute("require_mfa", "authentication", username, {"username": username})
+        # skills/authentication/mfa-fatigue's signal - every time a
+        # challenge is actually presented to the account holder, not just
+        # when a fresh code is issued (a repeat presentation of the SAME
+        # still-valid code is still another prompt the real owner has to
+        # deal with).
+        redis_tool.record_mfa_challenge(username)
+        return LoginResponse(username=user["username"], role=user["role"], mfa_required=True)
+
+    token = auth.create_access_token(user["username"])
+    return LoginResponse(access_token=token, username=user["username"], role=user["role"])
+
+
+@router.post("/verify-otp", response_model=LoginResponse)
+def verify_otp(body: VerifyOtpRequest):
+    username = body.username
+
+    if redis_tool.is_blocked(username, "otp_verify"):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                             "Too many incorrect verification codes - try again shortly.")
+
+    user = db.get_user(username)
+    if user is None or not user.get("mfa_hold"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No verification pending for this account")
+
+    otp_hash = user.get("mfa_otp_hash")
+    expires_at = user.get("mfa_otp_expires_at")
+    now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    if not otp_hash or not expires_at or expires_at <= now_iso:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                             "Verification code expired - log in again to receive a new one")
+
+    if not auth.verify_password(body.otp, otp_hash):
+        redis_tool.record_attempt(f"otp_verify:{username}")
+        if redis_tool.get_attempt_count(f"otp_verify:{username}", window_seconds=300) >= 5:
+            redis_tool.block_identity(username, "otp_verify", "5 incorrect OTP attempts", ttl_seconds=300)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect verification code")
+
+    db.clear_mfa_otp(username)
     token = auth.create_access_token(user["username"])
     return LoginResponse(access_token=token, username=user["username"], role=user["role"])
 

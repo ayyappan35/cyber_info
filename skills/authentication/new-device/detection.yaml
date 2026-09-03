@@ -1,0 +1,28 @@
+skill_id: new-device
+category: authentication
+
+signals:
+  - id: user_agent_seen_before_for_account
+    type: boolean
+    description: Whether this exact User-Agent string has ever been recorded for a successful login on this account (webapp_db.known_user_agents)
+  - id: known_user_agent_count_for_account
+    type: integer
+    description: How many distinct User-Agent strings are already known for this account - 0 means this would be the account's first-ever successful login
+  - id: this_attempt_success
+    type: boolean
+
+routing:
+  - field: user_agent_seen_before_for_account
+    op: eq
+    value: false
+    and:
+      field: this_attempt_success
+      op: eq
+      value: true
+    reason: "A successful login from a User-Agent never seen before on this account is the base new-device signal - only meaningful on a SUCCESS (a failed attempt from a new device is already covered by the other authentication skills)."
+
+# No floor - see SKILL.md: a first-time device is common, everyday,
+# legitimate behavior (a new phone, a browser reinstall, an established
+# account's owner using a second machine for the first time) far more
+# often than it's an attack. Full LLM judgment against the surrounding
+# evidence is the right fit, not a deterministic minimum action.

@@ -67,3 +67,13 @@ Same catalog as `authentication/brute-force/SKILL.md`. `terminate_session`
 relevant proposals here. `terminate_session` is risk=critical and
 requires admin approval; `require_mfa` is risk=high but auto-executes,
 since it only restricts further access rather than destroying live state.
+
+`require_mfa` generates a real one-time code, hashed and stored against
+the account (`webapp_db.mfa_otp_hash`/`mfa_otp_expires_at`), and emails
+it via `security_gateway/mcp_tools/mail_tool.py` (real SMTP when
+`SMTP_HOST` is configured, otherwise a real, admin-inspectable local
+outbox - `GET /api/admin/mail-outbox` - never a fake/no-op send). The
+account owner clears the hold themselves by submitting that code to
+`POST /api/auth/verify-otp`; an admin can still clear it directly
+(`POST /api/admin/users/{username}/clear-mfa-hold`) for a user who can't
+reach their registered email.

@@ -19,6 +19,16 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (user, pass) => {
     const data = await api.login(user, pass);
+    // Correct password, but the account is on an account-takeover OTP
+    // hold (security_gateway/mcp_gateway.py's require_mfa) - no token
+    // yet, the caller (Login.jsx) needs to prompt for the emailed code.
+    if (data.mfa_required) return { mfaRequired: true, username: data.username };
+    persistSession(data);
+    return { mfaRequired: false };
+  }, []);
+
+  const verifyOtp = useCallback(async (user, otp) => {
+    const data = await api.verifyOtp(user, otp);
     persistSession(data);
   }, []);
 
@@ -53,6 +63,7 @@ export function AuthProvider({ children }) {
         token,
         isAuthenticated: !!token,
         login,
+        verifyOtp,
         signup,
         logout,
       }}

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 import auth
 import webapp_db as db
-from schemas import SetRoleRequest, UserOut
+from schemas import MailOutboxOut, SetRoleRequest, UserOut
 from security_gateway.mcp_tools import redis_tool
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -41,16 +41,29 @@ def update_role(username: str, body: SetRoleRequest, admin: str = Depends(auth.r
 @router.post("/users/{username}/clear-mfa-hold", response_model=UserOut)
 def clear_mfa_hold(username: str, admin: str = Depends(auth.require_admin)):
     """Clears the hold security_gateway/mcp_gateway.py's require_mfa tool
-    sets (skills/authentication/*/SKILL.md's account-takeover response) -
-    the only way one is ever lifted, since this build has no real
-    second-factor challenge for a user to complete themselves. Returns
-    the updated user (same shape as /role and /unlock) so the frontend
-    can update its local state the same way for all three actions."""
+    sets (skills/authentication/*/SKILL.md's account-takeover response).
+    A user normally lifts this themselves by completing the emailed-OTP
+    challenge (backend/routers/auth_router.py's /verify-otp); this is the
+    fallback for a user who can't reach their registered email - it also
+    invalidates any outstanding OTP, same as a successful verification
+    would. Returns the updated user (same shape as /role and /unlock) so
+    the frontend can update its local state the same way for all three
+    actions."""
     target = db.get_user(username)
     if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    db.set_mfa_hold(username, False)
+    db.clear_mfa_otp(username)
     return db.get_user(username)
+
+
+@router.get("/mail-outbox", response_model=List[MailOutboxOut])
+def mail_outbox(to_email: str = None, _admin: str = Depends(auth.require_admin)):
+    """Local 'sent folder' for security_gateway/mcp_tools/mail_tool.py -
+    lets an admin (or a tester with no real inbox to check) retrieve an
+    OTP that was emailed to an account under an account-takeover hold.
+    Always populated, even when SMTP_HOST is configured for a real send -
+    see mail_tool.py's docstring."""
+    return db.list_outbox(to_email=to_email)
 
 
 @router.post("/users/{username}/unlock", response_model=UserOut)

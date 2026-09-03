@@ -10,10 +10,15 @@ const FEATURES = [
 ];
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, verifyOtp } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  // "credentials" | "otp" - flips to "otp" when the security gateway has
+  // put this account on an account-takeover hold (a correct password
+  // alone isn't enough; the emailed one-time code still is).
+  const [step, setStep] = useState("credentials");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,10 +27,28 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(username, password);
-      navigate("/chat");
+      const result = await login(username, password);
+      if (result.mfaRequired) {
+        setStep("otp");
+      } else {
+        navigate("/chat");
+      }
     } catch (err) {
       setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await verifyOtp(username, otp);
+      navigate("/chat");
+    } catch (err) {
+      setError(err.message || "Verification failed");
     } finally {
       setLoading(false);
     }
@@ -60,41 +83,91 @@ export default function Login() {
       <div style={styles.formSide}>
         <div style={styles.card}>
           <div style={styles.badge}>CD</div>
-          <h2 style={styles.title}>Welcome back</h2>
-          <p style={styles.subtitle}>Sign in to continue</p>
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <label style={styles.label}>
-              Username
-              <input
-                style={styles.input}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoFocus
-                required
-              />
-            </label>
-            <label style={styles.label}>
-              Password
-              <input
-                style={styles.input}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </label>
+          {step === "credentials" ? (
+            <>
+              <h2 style={styles.title}>Welcome back</h2>
+              <p style={styles.subtitle}>Sign in to continue</p>
 
-            {error && <div style={styles.error}>{error}</div>}
+              <form onSubmit={handleSubmit} style={styles.form}>
+                <label style={styles.label}>
+                  Username
+                  <input
+                    style={styles.input}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label style={styles.label}>
+                  Password
+                  <input
+                    style={styles.input}
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </label>
 
-            <button style={styles.button} type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
+                {error && <div style={styles.error}>{error}</div>}
 
-          <p style={styles.hint}>
-            Don't have an account? <Link to="/signup" style={styles.link}>Sign up</Link>
-          </p>
+                <button style={styles.button} type="submit" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign in"}
+                </button>
+              </form>
+
+              <p style={styles.hint}>
+                Don't have an account? <Link to="/signup" style={styles.link}>Sign up</Link>
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 style={styles.title}>Verify it's you</h2>
+              <p style={styles.subtitle}>
+                This account was flagged for a suspicious sign-in pattern. We
+                emailed a 6-digit code to the address on file - enter it below
+                to finish signing in.
+              </p>
+
+              <form onSubmit={handleVerifyOtp} style={styles.form}>
+                <label style={styles.label}>
+                  Verification code
+                  <input
+                    style={styles.input}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoFocus
+                    required
+                  />
+                </label>
+
+                {error && <div style={styles.error}>{error}</div>}
+
+                <button style={styles.button} type="submit" disabled={loading}>
+                  {loading ? "Verifying..." : "Verify and sign in"}
+                </button>
+              </form>
+
+              <p style={styles.hint}>
+                Wrong account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("credentials");
+                    setOtp("");
+                    setError("");
+                  }}
+                  style={styles.linkButton}
+                >
+                  Start over
+                </button>
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -263,5 +336,14 @@ const styles = {
     color: "var(--accent)",
     fontWeight: 600,
     textDecoration: "none",
+  },
+  linkButton: {
+    color: "var(--accent)",
+    fontWeight: 600,
+    background: "none",
+    border: "none",
+    padding: 0,
+    font: "inherit",
+    cursor: "pointer",
   },
 };

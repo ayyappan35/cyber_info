@@ -115,6 +115,76 @@ def get_distinct_usernames_for_password(source_ip: str, password_hash: str, wind
     return len({u for _ts, u in dq})
 
 
+# --- nonexistent-account tracking (credential-enumeration detection) ----
+# Same in-process, single-worker constraint as the trackers above. Keyed by
+# source IP -> deque of (timestamp, username), but only ever appended to
+# when the attempted account does NOT exist - skills/authentication/
+# credential-enumeration's defining signal is a source probing many
+# usernames to discover which ones are real, distinct from
+# credential-stuffing (distinct REAL accounts, each with its own
+# password) or password-spraying (one shared password across accounts).
+_nonexistent_attempts = defaultdict(deque)
+
+
+def record_nonexistent_attempt(source_ip: str, username: str) -> None:
+    _nonexistent_attempts[source_ip].append((time.time(), username))
+
+
+def get_nonexistent_attempt_count(source_ip: str, window_seconds: int = 300) -> int:
+    now = time.time()
+    dq = _nonexistent_attempts[source_ip]
+    while dq and now - dq[0][0] > window_seconds:
+        dq.popleft()
+    return len(dq)
+
+
+# --- per-account source-IP tracking (impossible-travel detection) -------
+# The inverse index of _username_attempts above: keyed by USERNAME -> deque
+# of (timestamp, source_ip), so skills/authentication/impossible-travel can
+# see how many DISTINCT source IPs this one account has been attempted
+# from recently. Honest scope note (CLAUDE.md Rule 3): this build has no
+# geo-IP database, so there is no real distance/travel-time calculation -
+# "impossible travel" here means "multiple source IPs for one account in a
+# short window," a real, weaker, honestly-labeled proxy for the same
+# underlying suspicion, not a fabricated geolocation feature.
+_account_source_ips = defaultdict(deque)
+
+
+def record_account_source_ip(username: str, source_ip: str) -> None:
+    _account_source_ips[username].append((time.time(), source_ip))
+
+
+def get_distinct_source_ips_for_account(username: str, window_seconds: int = 900) -> int:
+    now = time.time()
+    dq = _account_source_ips[username]
+    while dq and now - dq[0][0] > window_seconds:
+        dq.popleft()
+    return len({ip for _ts, ip in dq})
+
+
+# --- MFA challenge tracking (mfa-fatigue detection) ----------------------
+# Keyed by username -> deque of timestamps, one per time
+# backend/routers/auth_router.py actually presented an MFA challenge
+# (mfa_required=True) to this account. This build's MFA is an emailed
+# OTP, not a push notification, so "fatigue" here means an account that
+# keeps getting re-challenged in a short window - a real, honest proxy for
+# the same underlying push-notification-spam pattern, not a fabricated
+# signal.
+_mfa_challenge_events = defaultdict(deque)
+
+
+def record_mfa_challenge(username: str) -> None:
+    _mfa_challenge_events[username].append(time.time())
+
+
+def get_mfa_challenge_count(username: str, window_seconds: int = 600) -> int:
+    now = time.time()
+    dq = _mfa_challenge_events[username]
+    while dq and now - dq[0] > window_seconds:
+        dq.popleft()
+    return len(dq)
+
+
 # --- block list ------------------------------------------------------------
 
 def block_identity(identity: str, category: str, reason: str, ttl_seconds: int) -> None:

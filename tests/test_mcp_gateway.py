@@ -13,6 +13,7 @@ now `arguments` - the exact dict the tool's executor receives - not
 `evidence` to be transformed by a (now-removed) deterministic
 `_args_for()` builder. These tests pass each tool's real expected keys
 directly, the same way the Security LLM itself must now."""
+import auth
 from common import security_db
 import webapp_db as db
 from security_gateway import agent_registry, mcp_gateway
@@ -120,6 +121,44 @@ def test_require_mfa_sets_real_hold(monkeypatch, temp_sqlite_path):
     db.create_user("holduser", "hash", email="h@example.com")
     mcp_gateway.authorize_and_execute("require_mfa", "authentication", "holduser", {"username": "holduser"})
     assert db.get_user("holduser")["mfa_hold"] == 1
+
+
+def test_require_mfa_emails_a_real_otp_to_the_registered_address(monkeypatch, temp_sqlite_path):
+    _patch_common(monkeypatch, temp_sqlite_path)
+    db.create_user("otpholduser", "hash", email="otphold@example.com")
+
+    result = mcp_gateway.authorize_and_execute(
+        "require_mfa", "authentication", "otpholduser", {"username": "otpholduser"}
+    )
+
+    assert result.result["otp_sent"] is True
+    user = db.get_user("otpholduser")
+    assert user["mfa_otp_hash"] is not None
+    assert user["mfa_otp_expires_at"] > ""
+
+    # The outbox holds the real plaintext code (that's the whole point of
+    # a local dev fallback) - confirm it's a 6-digit code and matches the
+    # bcrypt hash stored against the account, not some other value.
+    mail = db.list_outbox(to_email="otphold@example.com")
+    assert len(mail) == 1
+    import re
+    otp_match = re.search(r"\b(\d{6})\b", mail[0]["body"])
+    assert otp_match is not None
+    assert auth.verify_password(otp_match.group(1), user["mfa_otp_hash"]) is True
+
+
+def test_require_mfa_with_no_registered_email_holds_without_sending(monkeypatch, temp_sqlite_path):
+    _patch_common(monkeypatch, temp_sqlite_path)
+    db.create_user("noemailuser", "hash", email=None)
+
+    result = mcp_gateway.authorize_and_execute(
+        "require_mfa", "authentication", "noemailuser", {"username": "noemailuser"}
+    )
+
+    assert result.result["mfa_hold"] is True
+    assert result.result["otp_sent"] is False
+    assert db.get_user("noemailuser")["mfa_hold"] == 1
+    assert db.get_user("noemailuser")["mfa_otp_hash"] is None
 
 
 def test_terminate_session_now_auto_executes(monkeypatch, temp_sqlite_path):

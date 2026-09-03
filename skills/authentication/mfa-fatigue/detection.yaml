@@ -1,0 +1,23 @@
+skill_id: mfa-fatigue
+category: authentication
+
+signals:
+  - id: mfa_challenges_presented_10min
+    type: integer
+    description: How many times this account has already been shown an MFA challenge (mfa_required=true) in the trailing 10 minutes (redis_tool, incremented by backend/routers/auth_router.py)
+  - id: this_attempt_success
+    type: boolean
+
+routing:
+  - field: mfa_challenges_presented_10min
+    op: gte
+    value: 2
+    and:
+      field: this_attempt_success
+      op: eq
+      value: true
+    reason: "2+ prior MFA challenges already presented to this account in 10 minutes, and yet another correct-password attempt just arrived, is repeated pressure against an existing hold - worth discussing regardless of whether this exact count is unusual for this account specifically."
+
+# No floor - see SKILL.md: this branch doesn't enforce floors, and even on
+# a build that did, there's no clean threshold that can't also describe a
+# legitimate, simply-forgetful account owner retrying a few times.

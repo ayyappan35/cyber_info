@@ -15,10 +15,26 @@ class SignupRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    access_token: str
+    # access_token is None when mfa_required is True - password was
+    # correct but the account is on an account-takeover OTP hold, so no
+    # token is issued until /api/auth/verify-otp succeeds.
+    access_token: Optional[str] = None
     token_type: str = "bearer"
     username: str
     role: str = "user"
+    mfa_required: bool = False
+
+
+class VerifyOtpRequest(BaseModel):
+    username: str
+    otp: str
+
+
+class MailOutboxOut(BaseModel):
+    to_email: str
+    subject: str
+    body: str
+    sent_at: str
 
 
 class LogoutResponse(BaseModel):

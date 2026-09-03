@@ -38,6 +38,7 @@ _PIPELINES_DIR = os.path.join(_PROJECT_ROOT, "backend", "pipelines")
 if _PIPELINES_DIR not in sys.path:
     sys.path.insert(0, _PIPELINES_DIR)
 
+import webapp_db as db
 from security_gateway import agent_registry, chain_detection, detection, mcp_gateway, policy, supervisor_agent
 from security_gateway import skills as skills_mod
 from security_gateway.decision import SecurityDecision, ToolCall
@@ -255,7 +256,8 @@ def _verify(request_category: str, identity: str, sandbox_id: Optional[str], blo
 # defined in one place, next to the skills it feeds.
 
 def gather_authentication_evidence(username: str, source_ip: str, account_exists: bool, failed_attempts: int,
-                                    locked: bool, this_attempt_success: bool, password: str) -> dict:
+                                    locked: bool, this_attempt_success: bool, password: str,
+                                    user_agent: str = "") -> dict:
     redis_tool.record_attempt(username)
     redis_tool.record_username_attempt(source_ip, username)
     # skills/authentication/password-spraying - password_hash is a plain
@@ -267,6 +269,32 @@ def gather_authentication_evidence(username: str, source_ip: str, account_exists
     # this signal at all) makes.
     password_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
     redis_tool.record_password_attempt(source_ip, password_hash, username)
+
+    # skills/authentication/credential-enumeration - only recorded when the
+    # attempted account doesn't exist, so this counts probing against
+    # usernames that AREN'T real, distinct from credential-stuffing's
+    # distinct-REAL-accounts signal above.
+    if not account_exists:
+        redis_tool.record_nonexistent_attempt(source_ip, username)
+
+    # skills/authentication/impossible-travel - distinct source IPs seen
+    # for THIS account recently, regardless of success/failure (an
+    # attacker's failed attempt from a second location is still evidence
+    # of the pattern). See redis_tool.py's docstring for the honest scope
+    # limitation (no real geo-IP/travel-time calculation in this build).
+    redis_tool.record_account_source_ip(username, source_ip)
+    distinct_source_ips_for_account = redis_tool.get_distinct_source_ips_for_account(username)
+
+    # skills/authentication/new-device - checked BEFORE recording, so a
+    # brand-new account's first-ever login correctly reads as "never seen
+    # this device before." Only ever recorded as known on a SUCCESSFUL
+    # login (webapp_db.py::record_user_agent's docstring) - an attacker's
+    # failed attempts from their own device must never earn it trust.
+    user_agent_seen_before = account_exists and db.is_known_user_agent(username, user_agent)
+    known_user_agent_count = db.count_known_user_agents(username) if account_exists else 0
+    if this_attempt_success:
+        db.record_user_agent(username, user_agent)
+
     return {
         "username": username,
         "source_ip": source_ip,
@@ -279,6 +307,11 @@ def gather_authentication_evidence(username: str, source_ip: str, account_exists
             source_ip, password_hash),
         "already_blocked": redis_tool.is_blocked(username, "authentication"),
         "this_attempt_success": this_attempt_success,
+        "nonexistent_account_attempts_from_source_5min": redis_tool.get_nonexistent_attempt_count(source_ip),
+        "distinct_source_ips_for_account_15min": distinct_source_ips_for_account,
+        "user_agent_seen_before_for_account": user_agent_seen_before,
+        "known_user_agent_count_for_account": known_user_agent_count,
+        "mfa_challenges_presented_10min": redis_tool.get_mfa_challenge_count(username),
     }
 
 

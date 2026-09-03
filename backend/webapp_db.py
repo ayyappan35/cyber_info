@@ -79,6 +79,22 @@ def init_db():
             trained_by TEXT NOT NULL,
             date TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS mail_outbox (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            to_email TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            sent_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS known_user_agents (
+            username TEXT NOT NULL,
+            user_agent TEXT NOT NULL,
+            first_seen_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            PRIMARY KEY (username, user_agent)
+        );
         """
     )
     # CREATE TABLE IF NOT EXISTS only handles brand-new DBs - migrate an
@@ -102,12 +118,21 @@ def init_db():
         conn.execute("ALTER TABLE app_users ADD COLUMN email TEXT")
     if "mfa_hold" not in user_cols:
         # Set by the require_mfa MCP tool (security_gateway/mcp_gateway.py).
-        # This project has no real TOTP/email second-factor verification
-        # flow - a hold is an honest, real deterministic access restriction
-        # (login blocked until an admin clears it), not a fake MFA
-        # challenge. See skills/authentication/*/SKILL.md's "what security
-        # boundaries apply" sections.
+        # A user clears this themselves by completing the emailed-OTP
+        # challenge (see mfa_otp_hash/mfa_otp_expires_at below and
+        # backend/routers/auth_router.py's /verify-otp) - an admin can
+        # also clear it directly (admin_router.py's clear-mfa-hold) as a
+        # fallback for a user who can't reach their registered email. See
+        # skills/authentication/*/SKILL.md's "what security boundaries
+        # apply" sections.
         conn.execute("ALTER TABLE app_users ADD COLUMN mfa_hold INTEGER NOT NULL DEFAULT 0")
+    if "mfa_otp_hash" not in user_cols:
+        # bcrypt hash (auth.hash_password) of the current one-time code
+        # emailed to this account, never the plaintext code itself. NULL
+        # when no challenge is outstanding.
+        conn.execute("ALTER TABLE app_users ADD COLUMN mfa_otp_hash TEXT")
+    if "mfa_otp_expires_at" not in user_cols:
+        conn.execute("ALTER TABLE app_users ADD COLUMN mfa_otp_expires_at TEXT")
     if "sessions_invalidated_before" not in user_cols:
         # Set by the terminate_session MCP tool - any JWT with an `iat`
         # before this cutoff is rejected by auth.get_current_user, even if
@@ -169,6 +194,101 @@ def set_role(username: str, role: str):
 def set_mfa_hold(username: str, hold: bool):
     conn = _conn()
     conn.execute("UPDATE app_users SET mfa_hold = ? WHERE username = ?", (int(hold), username))
+    conn.commit()
+    conn.close()
+
+
+def set_mfa_otp(username: str, otp_hash: str, expires_at_iso: str):
+    """Records the current outstanding OTP challenge for this account -
+    called by require_mfa (security_gateway/mcp_gateway.py) when it first
+    puts the account on hold, and again by auth_router.login() to issue a
+    fresh code if the previous one expired before the user re-attempted."""
+    conn = _conn()
+    conn.execute("UPDATE app_users SET mfa_otp_hash = ?, mfa_otp_expires_at = ? WHERE username = ?",
+                 (otp_hash, expires_at_iso, username))
+    conn.commit()
+    conn.close()
+
+
+def clear_mfa_otp(username: str):
+    """Clears the OTP challenge and lifts the hold together - called once
+    the user supplies a correct, unexpired code (auth_router.py's
+    /verify-otp) or an admin clears the hold directly
+    (admin_router.py's clear-mfa-hold)."""
+    conn = _conn()
+    conn.execute(
+        "UPDATE app_users SET mfa_hold = 0, mfa_otp_hash = NULL, mfa_otp_expires_at = NULL WHERE username = ?",
+        (username,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def record_outbox_email(to_email: str, subject: str, body: str):
+    """Local mail 'sent folder' - security_gateway/mcp_tools/mail_tool.py
+    writes here always, in addition to a real SMTP send when SMTP_HOST is
+    configured, so an OTP is always inspectable somewhere even before any
+    real mail server is wired up. Not a fake send: this is a real,
+    persisted record of the exact message that was (or would be)
+    delivered, honestly scoped the same way redis_tool.py's
+    sqlite-fallback is."""
+    conn = _conn()
+    conn.execute("INSERT INTO mail_outbox (to_email, subject, body, sent_at) VALUES (?, ?, ?, ?)",
+                 (to_email, subject, body, _now()))
+    conn.commit()
+    conn.close()
+
+
+def list_outbox(to_email: str = None, limit: int = 20):
+    conn = _conn()
+    if to_email:
+        rows = conn.execute(
+            "SELECT * FROM mail_outbox WHERE to_email = ? ORDER BY id DESC LIMIT ?", (to_email, limit)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM mail_outbox ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# --- known devices (skills/authentication/new-device) -----------------
+# "Device" here means the literal User-Agent header a login request
+# carried - a real signal (an actual HTTP header, not fabricated), but a
+# coarse one: this build does no canvas/TLS/behavioral fingerprinting, so
+# many real users legitimately share the same UA string (e.g. the same
+# browser version). Persistent (not a sliding window like redis_tool's
+# other trackers) because "have we ever seen this device for this
+# account" is a lifetime fact, not a recent-activity rate.
+
+def is_known_user_agent(username: str, user_agent: str) -> bool:
+    conn = _conn()
+    row = conn.execute(
+        "SELECT 1 FROM known_user_agents WHERE username = ? AND user_agent = ?", (username, user_agent)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def count_known_user_agents(username: str) -> int:
+    conn = _conn()
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM known_user_agents WHERE username = ?", (username,)
+    ).fetchone()
+    conn.close()
+    return row["n"]
+
+
+def record_user_agent(username: str, user_agent: str):
+    """Upsert - only ever called after a SUCCESSFUL login (gateway.py's
+    gather_authentication_evidence), so a failed attempt from an
+    attacker's own device never gets remembered as 'known'."""
+    conn = _conn()
+    now = _now()
+    conn.execute(
+        "INSERT INTO known_user_agents (username, user_agent, first_seen_at, last_seen_at) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(username, user_agent) DO UPDATE SET last_seen_at = excluded.last_seen_at",
+        (username, user_agent, now, now),
+    )
     conn.commit()
     conn.close()
 

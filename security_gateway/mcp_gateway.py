@@ -44,15 +44,17 @@ executor expects, purely so the Security LLM's prompt (llm_discussion.py)
 can tell the model what to supply - it is documentation for the prompt,
 not a validated schema; nothing here enforces that an LLM-supplied
 `arguments` dict actually matches its hint."""
+import secrets
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import auth
 from common import security_db
 import webapp_db as db
-from security_gateway.mcp_tools import redis_tool, sandbox_tool, siem_tool
+from security_gateway.mcp_tools import mail_tool, redis_tool, sandbox_tool, siem_tool
 
 # --- tool catalog -----------------------------------------------------------
 # Every tool the Security LLM Discussion node may propose. `allowed_categories`/
@@ -233,10 +235,29 @@ def _exec_rate_limit_user(args: dict) -> dict:
 
 
 def _exec_require_mfa(args: dict) -> dict:
+    """Puts the account on hold and emails a real one-time code the user
+    must supply back via /api/auth/verify-otp to regain access -
+    generated fresh each time this tool fires (see mail_tool.py for how
+    "email" resolves to a real SMTP send or an honest local outbox
+    fallback). An admin can still lift the hold directly
+    (admin_router.py's clear-mfa-hold) for a user who can't reach their
+    registered email."""
     username = args["username"]
     db.set_mfa_hold(username, True)
-    return {"username": username, "mfa_hold": True,
-            "note": "admin-clearable access hold - no real second-factor challenge exists in this build"}
+
+    user = db.get_user(username)
+    email = user.get("email") if user else None
+    if not email:
+        return {"username": username, "mfa_hold": True, "otp_sent": False,
+                "note": "account has no registered email - hold requires an admin to clear"}
+
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=mail_tool.OTP_TTL_SECONDS)).isoformat(timespec="seconds")
+    db.set_mfa_otp(username, auth.hash_password(otp), expires_at)
+    delivery = mail_tool.send_otp_email(email, username, otp)
+
+    return {"username": username, "mfa_hold": True, "otp_sent": True,
+            "otp_expires_at": expires_at, "delivered_via": delivery["delivered_via"]}
 
 
 def _exec_block_ip(args: dict) -> dict:

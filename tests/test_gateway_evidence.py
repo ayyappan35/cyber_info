@@ -51,11 +51,13 @@ def test_markers_only_checked_for_pdf_extension():
     assert evidence["pdf_active_content_markers"] == []
 
 
-def test_authentication_evidence_reflects_account_state(monkeypatch):
+def test_authentication_evidence_reflects_account_state(monkeypatch, temp_sqlite_path):
     import collections
     monkeypatch.setattr(redis_tool, "_attempts", collections.defaultdict(collections.deque))
     monkeypatch.setattr(redis_tool, "REDIS_URL", "")
     monkeypatch.setattr(redis_tool, "_client", None)
+    monkeypatch.setattr(gateway.db, "DB_PATH", temp_sqlite_path)
+    gateway.db.init_db()
 
     evidence = gateway.gather_authentication_evidence(
         username="zoe", source_ip="10.0.0.5", account_exists=True, failed_attempts=2,
@@ -114,6 +116,120 @@ def test_rag_security_evidence_truncates_long_context():
     evidence = gateway.gather_chat_evidence("question?", long_context, ["doc.md"])
     assert len(evidence["retrieved_context"]) == 6000
     assert evidence["sources"] == ["doc.md"]
+
+
+def test_credential_enumeration_signal_only_counts_nonexistent_accounts(monkeypatch, temp_sqlite_path):
+    import collections
+    monkeypatch.setattr(redis_tool, "_attempts", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "_nonexistent_attempts", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "REDIS_URL", "")
+    monkeypatch.setattr(redis_tool, "_client", None)
+    monkeypatch.setattr(gateway.db, "DB_PATH", temp_sqlite_path)
+    gateway.db.init_db()
+
+    source_ip = "198.51.100.60"
+    for name in ("ghost1", "ghost2"):
+        gateway.gather_authentication_evidence(
+            username=name, source_ip=source_ip, account_exists=False, failed_attempts=0,
+            locked=False, this_attempt_success=False, password="whatever",
+        )
+    # A real account attempt from the SAME source must not count toward
+    # the enumeration signal - it's about probing NONEXISTENT usernames.
+    evidence = gateway.gather_authentication_evidence(
+        username="realuser", source_ip=source_ip, account_exists=True, failed_attempts=0,
+        locked=False, this_attempt_success=False, password="whatever",
+    )
+    assert evidence["nonexistent_account_attempts_from_source_5min"] == 2
+
+
+def test_impossible_travel_signal_counts_distinct_ips_for_one_account(monkeypatch, temp_sqlite_path):
+    import collections
+    monkeypatch.setattr(redis_tool, "_attempts", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "_account_source_ips", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "REDIS_URL", "")
+    monkeypatch.setattr(redis_tool, "_client", None)
+    monkeypatch.setattr(gateway.db, "DB_PATH", temp_sqlite_path)
+    gateway.db.init_db()
+
+    username = "traveler"
+    gateway.gather_authentication_evidence(
+        username=username, source_ip="203.0.113.10", account_exists=True, failed_attempts=0,
+        locked=False, this_attempt_success=False, password="whatever",
+    )
+    evidence = gateway.gather_authentication_evidence(
+        username=username, source_ip="203.0.113.200", account_exists=True, failed_attempts=0,
+        locked=False, this_attempt_success=True, password="whatever",
+    )
+    assert evidence["distinct_source_ips_for_account_15min"] == 2
+
+
+def test_new_device_signal_false_and_zero_on_first_ever_login(monkeypatch, temp_sqlite_path):
+    import collections
+    monkeypatch.setattr(redis_tool, "_attempts", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "REDIS_URL", "")
+    monkeypatch.setattr(redis_tool, "_client", None)
+    monkeypatch.setattr(gateway.db, "DB_PATH", temp_sqlite_path)
+    gateway.db.init_db()
+
+    evidence = gateway.gather_authentication_evidence(
+        username="freshuser", source_ip="203.0.113.20", account_exists=True, failed_attempts=0,
+        locked=False, this_attempt_success=True, password="whatever", user_agent="Mozilla/5.0 Chrome",
+    )
+    # Never seen before AND zero known agents - a brand-new account's first
+    # login, not a suspicious device change on an established one.
+    assert evidence["user_agent_seen_before_for_account"] is False
+    assert evidence["known_user_agent_count_for_account"] == 0
+
+    # Recorded only because this_attempt_success was True above - the next
+    # login with the SAME user-agent now reads as already known.
+    evidence2 = gateway.gather_authentication_evidence(
+        username="freshuser", source_ip="203.0.113.20", account_exists=True, failed_attempts=0,
+        locked=False, this_attempt_success=True, password="whatever", user_agent="Mozilla/5.0 Chrome",
+    )
+    assert evidence2["user_agent_seen_before_for_account"] is True
+    assert evidence2["known_user_agent_count_for_account"] == 1
+
+
+def test_new_device_signal_not_recorded_on_failed_attempt(monkeypatch, temp_sqlite_path):
+    import collections
+    monkeypatch.setattr(redis_tool, "_attempts", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "REDIS_URL", "")
+    monkeypatch.setattr(redis_tool, "_client", None)
+    monkeypatch.setattr(gateway.db, "DB_PATH", temp_sqlite_path)
+    gateway.db.init_db()
+
+    # An attacker's failed attempt from their own device must never earn
+    # that device "known" status on the victim's account.
+    gateway.gather_authentication_evidence(
+        username="victim", source_ip="203.0.113.30", account_exists=True, failed_attempts=1,
+        locked=False, this_attempt_success=False, password="wrong-guess", user_agent="AttackerBot/1.0",
+    )
+    evidence = gateway.gather_authentication_evidence(
+        username="victim", source_ip="203.0.113.30", account_exists=True, failed_attempts=2,
+        locked=False, this_attempt_success=False, password="wrong-guess-again", user_agent="AttackerBot/1.0",
+    )
+    assert evidence["user_agent_seen_before_for_account"] is False
+    assert evidence["known_user_agent_count_for_account"] == 0
+
+
+def test_mfa_fatigue_signal_reflects_prior_challenges(monkeypatch, temp_sqlite_path):
+    import collections
+    monkeypatch.setattr(redis_tool, "_attempts", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "_mfa_challenge_events", collections.defaultdict(collections.deque))
+    monkeypatch.setattr(redis_tool, "REDIS_URL", "")
+    monkeypatch.setattr(redis_tool, "_client", None)
+    monkeypatch.setattr(gateway.db, "DB_PATH", temp_sqlite_path)
+    gateway.db.init_db()
+
+    username = "fatigued_user"
+    redis_tool.record_mfa_challenge(username)
+    redis_tool.record_mfa_challenge(username)
+
+    evidence = gateway.gather_authentication_evidence(
+        username=username, source_ip="203.0.113.40", account_exists=True, failed_attempts=0,
+        locked=False, this_attempt_success=True, password="whatever",
+    )
+    assert evidence["mfa_challenges_presented_10min"] == 2
 
 
 def test_distinct_usernames_from_source_increments_across_calls(monkeypatch):

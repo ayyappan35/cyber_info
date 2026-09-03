@@ -94,6 +94,8 @@ export const api = {
     request("/api/auth/signup", { method: "POST", body: { username, email, password } }),
   login: (username, password) =>
     request("/api/auth/login", { method: "POST", body: { username, password } }),
+  verifyOtp: (username, otp) =>
+    request("/api/auth/verify-otp", { method: "POST", body: { username, otp } }),
   logout: () => request("/api/auth/logout", { method: "POST" }),
   me: () => request("/api/auth/me"),
 

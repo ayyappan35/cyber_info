@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Account Takeover + MFA OTP — Live Test, Step by Step</title>
+<style>
+  :root{
+    /* same base palette as login_auth_skills_live_test.html / live_test_results.html — Claude Desktop default light theme */
+    --bg:#F7F6F3; --panel:#FFFFFF; --panel-soft:#FBFAF8; --border:#E7E5DF;
+    --text:#211F1C; --muted:#6B6A64; --muted2:#8A8880;
+    --accent:#D97757; --accent-dark:#BF5F42; --accent-soft:#FBEAE3; --accent-line:#EFC9BA;
+    --green:#3E8B5E; --green-soft:#E7F3EB;
+    --amber:#B9862C; --amber-soft:#FBF1DE;
+    --blue:#4E7CA6; --blue-soft:#E9F1F8;
+    --red:#C1503F; --red-soft:#FBEBE8;
+    --teal:#3F8E82; --teal-soft:#E3F2EF;
+    --purple:#7B6CB0; --purple-soft:#EEEAF7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55;}
+  .wrap{max-width:840px; margin:0 auto; padding:48px 24px 96px;}
+  h1{font-size:1.6rem; margin:0 0 6px; letter-spacing:-0.01em;}
+  h2{font-size:1.2rem; margin:52px 0 6px; color:var(--accent-dark);}
+  h2 .idx{font-family:ui-monospace,Consolas,monospace; font-size:0.75rem; color:var(--muted2); font-weight:400; margin-right:8px;}
+  .sub{color:var(--muted); font-size:0.95rem; margin:0 0 10px;}
+  .scenario-sub{color:var(--muted); font-size:0.88rem; margin:0 0 22px;}
+  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.83em; color:var(--accent-dark);}
+
+  .runinfo{display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 8px;}
+  .runinfo .chip{background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:5px 13px; font-size:0.78rem; color:var(--muted);}
+  .runinfo .chip b{color:var(--text);}
+
+  .legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:22px 0 8px; font-size:0.8rem; color:var(--muted);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
+
+  /* -------- login UI mock (mirrors frontend/src/pages/Login.jsx) -------- */
+  .loginmock{
+    display:grid; grid-template-columns:1fr 1.15fr; border:1px solid var(--border); border-radius:16px;
+    overflow:hidden; box-shadow:0 1px 3px rgba(20,20,15,0.05); margin:18px 0 10px; background:var(--panel);
+  }
+  .loginmock .hero{
+    background:linear-gradient(160deg,#211f1c 0%,#2b2a27 55%,#35281f 100%);
+    color:#ece8e1; padding:28px 22px; display:flex; flex-direction:column; justify-content:center; gap:10px;
+  }
+  .loginmock .hero .shield{font-size:26px;}
+  .loginmock .hero h3{margin:6px 0 2px; font-size:1.02rem; color:#fff;}
+  .loginmock .hero p{margin:0 0 6px; font-size:0.72rem; color:#c7c2b8; line-height:1.5;}
+  .loginmock .form{padding:26px 24px; display:flex; flex-direction:column; align-items:center;}
+  .loginmock .badge{width:32px; height:32px; border-radius:9px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; margin-bottom:10px;}
+  .loginmock .form h4{margin:0 0 2px; font-size:0.92rem;}
+  .loginmock .form .hint{font-size:0.72rem; color:var(--muted); margin:0 0 14px; text-align:center;}
+  .loginmock .field{width:100%; max-width:230px; margin-bottom:8px;}
+  .loginmock .field .flabel{font-size:0.66rem; color:var(--muted); display:block; margin-bottom:3px;}
+  .loginmock .field .finput{border:1px solid var(--border); border-radius:8px; padding:6px 9px; font-size:0.76rem; color:var(--muted2); background:var(--panel-soft); width:100%;}
+  .loginmock .btn{width:100%; max-width:230px; margin-top:6px; background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 10px; font-size:0.78rem; font-weight:600; text-align:center;}
+  .loginmock .banner{width:100%; max-width:230px; margin-top:10px; border-radius:8px; padding:7px 10px; font-size:0.7rem; line-height:1.4;}
+  .loginmock .banner.err{background:var(--red-soft); color:#8f3b2e; border:1px solid #f0d3ce;}
+  .loginmock .banner.warn{background:var(--amber-soft); color:#7a5a17; border:1px solid #ecdcae;}
+  .loginmock .banner.ok{background:var(--green-soft); color:#2b6b46; border:1px solid #cfe8d8;}
+  .loginmock .banner b{display:block; font-size:0.62rem; text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px;}
+  .capline{font-size:0.74rem; color:var(--muted2); text-align:center; margin:0 0 30px;}
+
+  /* -------- timeline (same pattern as the other docs/*.html files) -------- */
+  .timeline{position:relative; padding-left:52px;}
+  .timeline::before{
+    content:""; position:absolute; left:21px; top:8px; bottom:8px; width:2px;
+    background:linear-gradient(var(--accent-line), var(--border) 90%);
+  }
+  .step{position:relative; margin-bottom:16px;}
+  .node{
+    position:absolute; left:-52px; top:0; width:40px; height:40px; border-radius:50%;
+    background:var(--panel); border:2px solid var(--accent); color:var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.86rem;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
+  }
+  .step.gate .node{border-color:var(--amber); color:var(--amber);}
+  .step.llm .node{border-color:var(--purple); color:var(--purple);}
+  .step.mcp .node{border-color:var(--blue); color:var(--blue);}
+  .step.verify .node{border-color:var(--teal); color:var(--teal);}
+  .step.outcome .node{border-color:var(--red); color:var(--red);}
+  .step.mail .node{border-color:var(--green); color:var(--green);}
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:13px;
+    padding:14px 18px; box-shadow:0 1px 3px rgba(20,20,15,0.04);
+  }
+  .card h3{margin:0 0 4px; font-size:0.94rem;}
+  .card p{margin:0; font-size:0.83rem; color:var(--muted);}
+  .card .meta{margin-top:8px; font-size:0.74rem; color:var(--muted2);}
+  .pill{
+    display:inline-block; font-size:0.64rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
+    padding:2px 8px; border-radius:999px; margin-left:7px; vertical-align:middle;
+  }
+  .pill.ui{background:var(--accent-soft); color:var(--accent-dark);}
+  .pill.gate{background:var(--amber-soft); color:var(--amber);}
+  .pill.llm{background:var(--purple-soft); color:var(--purple);}
+  .pill.mcp{background:var(--blue-soft); color:var(--blue);}
+  .pill.verify{background:var(--teal-soft); color:var(--teal);}
+  .pill.block{background:var(--red-soft); color:var(--red);}
+  .pill.mitigate{background:var(--amber-soft); color:var(--amber);}
+  .pill.allow{background:var(--green-soft); color:var(--green);}
+  .pill.mail{background:var(--green-soft); color:var(--green);}
+
+  .rowgrid{display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:6px; font-size:0.79rem;}
+  .rowgrid .k{color:var(--muted2); white-space:nowrap;}
+  .rowgrid .v{color:var(--text); font-variant-numeric:tabular-nums;}
+
+  .reasoning{
+    margin-top:9px; padding:9px 12px; border-radius:9px; background:var(--purple-soft);
+    border:1px solid #ddd6ee; color:#4c4270; font-size:0.8rem;
+  }
+  .reasoning b{display:block; font-size:0.68rem; text-transform:uppercase; letter-spacing:.02em; margin-bottom:3px; color:#665a91;}
+
+  .indicators{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .indicators span{background:var(--amber-soft); color:var(--amber); border:1px solid #ecdcae; border-radius:999px; padding:2px 9px; font-size:0.7rem;}
+
+  .toolgrid{display:flex; flex-direction:column; gap:6px; margin-top:9px;}
+  .toolrow{display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--border); background:var(--panel-soft); border-radius:8px; padding:7px 10px; font-size:0.75rem;}
+  .toolrow code{font-size:0.75em;}
+  .tstat{font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em; padding:1px 7px; border-radius:999px; white-space:nowrap; background:var(--green-soft); color:var(--green);}
+
+  .skillpills{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .skillpill{border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-dark); border-radius:999px; padding:3px 10px; font-size:0.72rem; font-weight:600;}
+
+  .emailcard{margin-top:10px; border:1px solid var(--border); border-radius:10px; background:var(--panel-soft); overflow:hidden;}
+  .emailcard .head{display:flex; justify-content:space-between; gap:10px; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--border); font-size:0.72rem; color:var(--muted2);}
+  .emailcard .subj{padding:8px 12px 0; font-size:0.82rem; font-weight:600;}
+  .emailcard .body{padding:6px 12px 12px; font-size:0.78rem; color:var(--muted); white-space:pre-wrap;}
+  .emailcard .otp{display:inline-block; margin:4px 0; font-family:ui-monospace,Consolas,monospace; font-size:1.05rem; font-weight:700; letter-spacing:0.12em; color:var(--accent-dark); background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:8px; padding:3px 10px;}
+
+  .httpcard{margin-top:8px; border:1px solid var(--border); border-radius:10px; overflow:hidden; font-family:ui-monospace,Consolas,monospace; font-size:0.74rem;}
+  .httpcard .req{background:#2b2a27; color:#e2ddd2; padding:7px 12px;}
+  .httpcard .res{background:var(--panel-soft); color:var(--text); padding:7px 12px; border-top:1px solid var(--border); white-space:pre-wrap;}
+  .httpcard .res.err{color:#8f3b2e;}
+  .httpcard .res.ok{color:#2b6b46;}
+  .httpcard .res.warn{color:#7a5a17;}
+
+  .footer{margin-top:56px; padding-top:18px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
+  .note{margin:26px 0 0; padding:12px 16px; border:1px solid var(--border); border-left:4px solid var(--blue); background:var(--panel-soft); border-radius:8px; font-size:0.85rem; color:var(--muted);}
+
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0;}
+  .toc a{font-size:0.78rem; color:var(--accent-dark); text-decoration:none; background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:999px; padding:5px 12px;}
+  .toc a:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Account takeover + MFA OTP — live test, step by step</h1>
+  <p class="sub">A genuine end-to-end run of the account-takeover skill after the account-takeover MFA
+    hold was upgraded from an admin-only "hold pending review" (see
+    <code>docs/login_auth_skills_live_test.html</code>'s account-takeover section) to a real emailed
+    one-time code the account owner can clear themselves. Every request below hit the actual running
+    FastAPI server over HTTP (<code>POST /api/auth/login</code>, <code>POST /api/auth/verify-otp</code>),
+    with a real Claude Sonnet 5 Security LLM Discussion call, real MCP tool execution
+    (<code>require_mfa</code>), and a real OTP written to the local mail outbox
+    (<code>security_gateway/mcp_tools/mail_tool.py</code>, no SMTP server configured for this run) —
+    not a code-level simulation.</p>
+
+  <div class="runinfo">
+    <span class="chip">Provider <b>anthropic / claude-sonnet-5</b></span>
+    <span class="chip">Skill <b>authentication / account-takeover</b></span>
+    <span class="chip">Mail backend <b>local-outbox</b> (no SMTP_HOST set)</span>
+    <span class="chip">Run date <b>2026-09-03</b></span>
+    <span class="chip">Result <b>10 / 10 HTTP checks passed</b></span>
+  </div>
+
+  <div class="toc">
+    <a href="#setup">Setup</a>
+    <a href="#detect">Detect account-takeover</a>
+    <a href="#mfa-activate">MFA activates</a>
+    <a href="#login-blocked">Login demands OTP</a>
+    <a href="#otp-verify">OTP verification</a>
+    <a href="#cleared">Cleared &amp; signed in</a>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--accent)"></i>UI / request</span>
+    <span><i class="dot" style="background:var(--amber)"></i>Deterministic gate (bcrypt, pre-checks)</span>
+    <span><i class="dot" style="background:var(--purple)"></i>Supervisor Agent / Security LLM Discussion</span>
+    <span><i class="dot" style="background:var(--blue)"></i>MCP Tool Authorization Gateway</span>
+    <span><i class="dot" style="background:var(--green)"></i>Mail delivery (mail_tool.py)</span>
+    <span><i class="dot" style="background:var(--teal)"></i>Verification</span>
+    <span><i class="dot" style="background:var(--red)"></i>Response back to the login screen</span>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- SETUP -->
+  <!-- ======================================================================= -->
+  <h2 id="setup"><span class="idx">Setup</span>Fresh account, then 3 failed logins</h2>
+  <p class="scenario-sub">A brand-new account, <code>grace_ato_live</code>, is created via
+    <code>POST /api/auth/signup</code>, then submits the wrong password 3 times in a row — exactly the
+    "established suspicious context" <code>skills/authentication/account-takeover/SKILL.md</code> requires
+    before a subsequent <i>success</i> can read as a takeover rather than an ordinary typo-correction.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/signup {"username":"grace_ato_live","email":"grace_ato_live@example.com","password":"••••••••••••"}</div>
+    <div class="res ok">200 → {"username":"grace_ato_live","role":"user","mfa_required":false, "access_token":"eyJ…"}</div>
+  </div>
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹wrong›"}  ×3</div>
+    <div class="res err">401 → {"detail":"Invalid username or password"}  (×3, identical each time)</div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- DETECT -->
+  <!-- ======================================================================= -->
+  <h2 id="detect"><span class="idx">Step 1</span>4th attempt, correct password — takeover pattern fires</h2>
+  <p class="scenario-sub">The 4th submit uses the account's real password. This is the exact signature
+    <code>detection.yaml</code>'s routing rule describes: <code>this_attempt_success=true</code> AND
+    <code>failed_attempts≥3</code> — offered to the Security LLM as a candidate, never auto-decided by
+    that rule alone (account-takeover has no numeric floor of its own; see the SKILL.md).</p>
+
+  <div class="timeline">
+    <div class="step">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>4th submit, this one correct <span class="pill ui">UI</span></h3>
+        <p><code>grace_ato_live</code> typed the wrong password 3 times, then the 4th submit is the real one.</p>
+      </div>
+    </div>
+    <div class="step gate">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>Pre-checks + bcrypt <span class="pill gate">Deterministic</span></h3>
+        <p>No block, no lock, no MFA hold yet on this account. <code>auth.verify_password()</code> — a real
+          bcrypt compare — matches. <code>success = true</code>, but the gateway still runs before any
+          token is issued.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Evidence gathered <span class="pill gate">gather_authentication_evidence()</span></h3>
+        <div class="rowgrid">
+          <span class="k">failed_attempts</span><span class="v">3</span>
+          <span class="k">this_attempt_success</span><span class="v">true</span>
+          <span class="k">recent_attempt_count_1min</span><span class="v">4</span>
+          <span class="k">account_exists</span><span class="v">true</span>
+        </div>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning (captured verbatim)</b>"A login just succeeded on this account right after a short burst of failed attempts, which is the classic pattern of a takeover attempt finally guessing correctly rather than an obvious single typo. The failure count is modest and not extreme, so mitigation with a hold pending verification is warranted rather than an outright block."</div>
+        <div class="indicators">
+          <span>successful login following elevated failed_attempts (3) and recent_attempt_count_1min=4 on same account</span>
+          <span>username naming suggests test/simulated ATO scenario</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">account-takeover</span></div>
+        <p class="meta">Verdict: <span class="pill mitigate">MITIGATE · confidence 0.60</span> — the model
+          even flagged the test username itself as a tell, unprompted.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- MFA ACTIVATE -->
+  <!-- ======================================================================= -->
+  <h2 id="mfa-activate"><span class="idx">Step 2</span>MFA activates — <code>require_mfa</code> fires, real OTP emailed</h2>
+  <p class="scenario-sub">This is the part that changed since the four-skill report: <code>require_mfa</code>
+    no longer just flips a bit an admin has to clear. It generates a real 6-digit code, hashes it
+    (bcrypt) into <code>webapp_db.app_users.mfa_otp_hash</code> with a 10-minute expiry, and emails it —
+    real SMTP if <code>SMTP_HOST</code> is configured, otherwise the local outbox this run actually used.</p>
+
+  <div class="timeline">
+    <div class="step mcp">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <p>Both tool calls below are the model's own — name and arguments, grounded in this request's
+          own identity — executed immediately (no category/rate-limit/approval gate on this branch).</p>
+        <div class="toolgrid">
+          <div class="toolrow"><code>require_mfa(username=grace_ato_live)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_login_attempts(username=grace_ato_live)</code><span class="tstat">executed</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="step mail">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>require_mfa's real result <span class="pill mail">mail_tool.py</span></h3>
+        <div class="rowgrid">
+          <span class="k">mfa_hold</span><span class="v">true</span>
+          <span class="k">otp_sent</span><span class="v">true</span>
+          <span class="k">delivered_via</span><span class="v">local-outbox</span>
+          <span class="k">otp_expires_at</span><span class="v">2026-09-03T10:11:39+00:00</span>
+        </div>
+        <p class="meta">Captured directly from the MCP executor's return value, logged verbatim to the
+          SIEM tool (<code>security_gateway/mcp_tools/siem_tool.py</code>) before this response reached
+          the caller.</p>
+      </div>
+    </div>
+    <div class="step mail">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>The actual email <span class="pill mail">webapp_db.mail_outbox</span></h3>
+        <div class="emailcard">
+          <div class="head"><span>To: grace_ato_live@example.com</span><span>via local-outbox</span></div>
+          <div class="subj">Security verification code</div>
+          <div class="body">A sign-in to the account 'grace_ato_live' was flagged by the security gateway for additional verification (account-takeover pattern).
+
+Your one-time verification code is: <span class="otp">876338</span>
+This code expires in 10 minutes.
+
+If this wasn't you, contact an administrator.</div>
+        </div>
+        <p class="meta">Read straight out of <code>GET</code>-able storage (<code>db.list_outbox()</code> /
+          the admin-only <code>GET /api/admin/mail-outbox</code>) — the exact code a real inbox would have
+          shown, not a value invented for this report.</p>
+      </div>
+    </div>
+    <div class="step outcome">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>...but THIS login still succeeds <span class="pill allow">200 · token issued</span></h3>
+        <div class="httpcard">
+          <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹correct›"}  (4th attempt)</div>
+          <div class="res ok">200 → {"mfa_required":false, "access_token":"eyJ…", "role":"user"}</div>
+        </div>
+        <p class="meta"><code>auth_router.py</code> reads the account's <code>mfa_hold</code> field
+          <i>before</i> calling <code>gateway.analyze()</code> — so even though <code>require_mfa</code>
+          flips it to <code>true</code> during this very call, this request's own token still goes out.
+          The hold takes effect starting with the <i>next</i> login — same order-of-operations the
+          original admin-only-hold design had (see <code>docs/login_auth_skills_live_test.html</code>),
+          now paired with a real challenge instead of a dead end.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- LOGIN BLOCKED -->
+  <!-- ======================================================================= -->
+  <h2 id="login-blocked"><span class="idx">Step 3</span>Login test — 5th attempt now demands the code</h2>
+  <p class="scenario-sub">Same password, same account, one login later — this is the login screen a
+    real user (owner or attacker) hits next.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹correct›"}  (5th attempt)</div>
+    <div class="res warn">200 → {"mfa_required":true, "access_token":null, "username":"grace_ato_live", "role":"user"}</div>
+  </div>
+
+  <div class="loginmock" style="margin-top:14px;">
+    <div class="hero">
+      <div class="shield">🛡️</div>
+      <h3>Cyber Defense Assistant</h3>
+      <p>An autonomous SOC copilot that reasons over real MCP tool calls — detection, response, and training, all agent-driven.</p>
+    </div>
+    <div class="form">
+      <div class="badge">CD</div>
+      <h4>Verify it's you</h4>
+      <p class="hint">This account was flagged for a suspicious sign-in pattern. We emailed a 6-digit code — enter it below to finish signing in.</p>
+      <div class="field"><span class="flabel">Verification code</span><div class="finput">••••••</div></div>
+      <div class="btn">Verify and sign in</div>
+    </div>
+  </div>
+  <p class="meta" style="text-align:center; color:var(--muted2); font-size:0.78rem;">
+    <code>frontend/src/pages/Login.jsx</code>'s new second step — rendered the moment
+    <code>login()</code> resolves with <code>mfa_required: true</code>, correct password required to
+    even reach this screen (an attacker without it never learns the account is on hold).</p>
+
+  <!-- ======================================================================= -->
+  <!-- OTP VERIFY -->
+  <!-- ======================================================================= -->
+  <h2 id="otp-verify"><span class="idx">Step 4</span>OTP verification — wrong code rejected, correct code accepted</h2>
+  <p class="scenario-sub"><code>POST /api/auth/verify-otp</code> checks the submitted code against the
+    bcrypt hash stored against the account, with a 5-attempt / 5-minute rate limit
+    (reusing <code>redis_tool</code>'s existing block-identity mechanism) against brute-forcing the
+    6-digit space.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/verify-otp {"username":"grace_ato_live","otp":"000000"}</div>
+    <div class="res err">401 → {"detail":"Incorrect verification code"}</div>
+  </div>
+  <div class="httpcard">
+    <div class="req">POST /api/auth/verify-otp {"username":"grace_ato_live","otp":"876338"}</div>
+    <div class="res ok">200 → {"mfa_required":false, "access_token":"eyJ…", "role":"user"}</div>
+  </div>
+
+  <div class="step verify" style="margin-top:16px;">
+    <div class="node">✓</div>
+    <div class="card">
+      <h3>Account state re-read after verification <span class="pill verify">re-read, not trusted</span></h3>
+      <div class="rowgrid">
+        <span class="k">mfa_hold</span><span class="v">0</span>
+        <span class="k">mfa_otp_hash</span><span class="v">null</span>
+      </div>
+      <p class="meta"><code>db.clear_mfa_otp()</code> lifts the hold and wipes the challenge together —
+        confirmed by reading the row back, not assumed from the 200 response alone.</p>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- CLEARED -->
+  <!-- ======================================================================= -->
+  <h2 id="cleared"><span class="idx">Step 5</span>Cleared &amp; signed in — back to a normal login</h2>
+  <p class="scenario-sub">One more login, same password, to confirm the account is genuinely back to a
+    single-step sign-in — not still gated on something the 200 above didn't actually clear.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹correct›"}  (6th attempt)</div>
+    <div class="res ok">200 → {"mfa_required":false, "access_token":"eyJ…", "role":"user"}</div>
+  </div>
+
+  <div class="note">
+    <b>What changed vs. the original design:</b> <code>docs/login_auth_skills_live_test.html</code>'s
+    account-takeover run ended at <code>require_mfa</code> setting an admin-clearable hold — "not a fake
+    MFA challenge," but also a dead end for the account owner (403 forever, until an admin manually
+    intervenes). This run exercises the replacement: a real one-time code, really emailed (SMTP when
+    configured, an honest inspectable local outbox otherwise — never a fake/no-op send per CLAUDE.md
+    Rule 3), that the owner clears themselves via <code>POST /api/auth/verify-otp</code>. The admin
+    override (<code>POST /api/admin/users/{username}/clear-mfa-hold</code>) still exists as a fallback
+    for a user who can't reach their registered email — see
+    <code>skills/authentication/account-takeover/SKILL.md</code>'s "MCP Tools" section.
+  </div>
+
+  <div class="footer">
+    Live run — not a simulation. Every request above hit a real <code>uvicorn</code> process
+    (<code>backend/main.py</code>) over HTTP, with a real Claude Sonnet 5 Security LLM Discussion call
+    (<code>security_gateway/llm_discussion.py</code>), real MCP tool execution
+    (<code>security_gateway/mcp_gateway.py</code>), and a real emailed OTP
+    (<code>security_gateway/mcp_tools/mail_tool.py</code>) — captured verbatim from the running server's
+    HTTP responses, its SIEM event log, and the account's own database row, then the test account was
+    deleted. Login/OTP screens mirror <code>frontend/src/pages/Login.jsx</code>; response bodies mirror
+    <code>backend/routers/auth_router.py</code>'s <code>login()</code> and <code>verify_otp()</code>
+    exactly. Same base theme as <code>docs/login_auth_skills_live_test.html</code>. See
+    <code>docs/AGENTIC_SYSTEM_EXPERIMENT.md</code> for what "agentic" means on this branch, and
+    <code>docs/architecture.md</code> for the full pipeline.
+  </div>
+
+</div>
+</body>
+</html>

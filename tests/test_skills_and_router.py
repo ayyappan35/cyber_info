@@ -121,6 +121,7 @@ def test_all_skills_for_authentication_is_every_authentication_skill():
     selected = supervisor_agent.all_skills_for("authentication")
     assert {sid for _cat, sid in selected} == {
         "credential-stuffing", "account-takeover", "brute-force", "password-spraying",
+        "credential-enumeration", "impossible-travel", "new-device", "mfa-fatigue",
     }
     assert {cat for cat, _sid in selected} == {"authentication"}
 

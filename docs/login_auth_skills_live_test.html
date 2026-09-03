@@ -98,6 +98,9 @@
   .pill.verify{background:var(--teal-soft); color:var(--teal);}
   .pill.block{background:var(--red-soft); color:var(--red);}
   .pill.mitigate{background:var(--amber-soft); color:var(--amber);}
+  .pill.allow{background:var(--green-soft); color:var(--green);}
+  .pill.mail{background:var(--green-soft); color:var(--green);}
+  .step.mail .node{border-color:var(--green); color:var(--green);}
 
   .rowgrid{display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:6px; font-size:0.79rem;}
   .rowgrid .k{color:var(--muted2); white-space:nowrap;}
@@ -120,6 +123,19 @@
   .skillpills{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
   .skillpill{border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-dark); border-radius:999px; padding:3px 10px; font-size:0.72rem; font-weight:600;}
   .skillpill.secondary{border-color:var(--border); background:var(--panel-soft); color:var(--muted);}
+
+  .emailcard{margin-top:10px; border:1px solid var(--border); border-radius:10px; background:var(--panel-soft); overflow:hidden;}
+  .emailcard .head{display:flex; justify-content:space-between; gap:10px; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--border); font-size:0.72rem; color:var(--muted2);}
+  .emailcard .subj{padding:8px 12px 0; font-size:0.82rem; font-weight:600;}
+  .emailcard .body{padding:6px 12px 12px; font-size:0.78rem; color:var(--muted); white-space:pre-wrap;}
+  .emailcard .otp{display:inline-block; margin:4px 0; font-family:ui-monospace,Consolas,monospace; font-size:1.05rem; font-weight:700; letter-spacing:0.12em; color:var(--accent-dark); background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:8px; padding:3px 10px;}
+
+  .httpcard{margin-top:8px; border:1px solid var(--border); border-radius:10px; overflow:hidden; font-family:ui-monospace,Consolas,monospace; font-size:0.74rem;}
+  .httpcard .req{background:#2b2a27; color:#e2ddd2; padding:7px 12px; word-break:break-all;}
+  .httpcard .res{background:var(--panel-soft); color:var(--text); padding:7px 12px; border-top:1px solid var(--border); white-space:pre-wrap; word-break:break-all;}
+  .httpcard .res.err{color:#8f3b2e;}
+  .httpcard .res.ok{color:#2b6b46;}
+  .httpcard .res.warn{color:#7a5a17;}
 
   .footer{margin-top:56px; padding-top:18px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
   .note{margin:26px 0 0; padding:12px 16px; border:1px solid var(--border); border-left:4px solid var(--blue); background:var(--panel-soft); border-radius:8px; font-size:0.85rem; color:var(--muted);}
@@ -153,6 +169,7 @@
     <a href="#brute-force">brute-force</a>
     <a href="#credential-stuffing">credential-stuffing</a>
     <a href="#account-takeover">account-takeover</a>
+    <a href="#ato-mfa-otp-run">account-takeover: MFA/OTP run</a>
     <a href="#password-spraying">password-spraying</a>
   </div>
 
@@ -448,20 +465,20 @@
           <div class="toolrow"><code>get_login_attempts(username=frank_ato)</code><span class="tstat">executed</span></div>
           <div class="toolrow"><code>require_mfa(username=frank_ato)</code><span class="tstat">executed</span></div>
         </div>
-        <p class="meta"><code>require_mfa</code> sets an admin-clearable access hold — not <code>terminate_session</code>, which the model correctly withheld: this token was only just about to be issued, there's no earlier attacker session here to kill.</p>
+        <p class="meta"><code>require_mfa</code> now generates a real one-time code, hashes it into <code>webapp_db.app_users.mfa_otp_hash</code> with a 10-minute expiry, and emails it (real SMTP when <code>SMTP_HOST</code> is configured, otherwise a real local outbox — never a fake/no-op send) — not <code>terminate_session</code>, which the model correctly withheld: this token was only just about to be issued, there's no earlier attacker session here to kill. <b>Updated 2026-09-03</b> — this used to be an admin-only hold with no real second-factor challenge; see <code>docs/account_takeover_mfa_otp_live_test.html</code> for the full emailed-OTP → verify → cleared walkthrough.</p>
       </div>
     </div>
     <div class="step verify">
       <div class="node">7</div>
       <div class="card">
         <h3>Verification <span class="pill verify">re-read, not trusted</span></h3>
-        <p><code>webapp_db.app_users.mfa_hold</code> re-read and confirmed <code>true</code> for <code>frank_ato</code> before the tool call is reported enforced.</p>
+        <p><code>webapp_db.app_users.mfa_hold</code> re-read and confirmed <code>true</code> for <code>frank_ato</code>, and the emailed OTP re-read from the local outbox, before the tool call is reported enforced.</p>
       </div>
     </div>
     <div class="step outcome">
       <div class="node">8</div>
       <div class="card">
-        <h3>This login → then the next one <span class="pill mitigate">200 now, 403 next time</span></h3>
+        <h3>This login → then the next one <span class="pill mitigate">200 now, OTP screen next time</span></h3>
         <div class="loginmock" style="margin-top:10px;">
           <div class="hero">
             <div class="shield">🛡️</div>
@@ -478,9 +495,252 @@
             <div class="banner ok"><b>Signed in</b>Password was correct — token issued, redirected to /chat. The MFA hold set above applies to the <i>next</i> login attempt, not this one.</div>
           </div>
         </div>
-        <p class="meta">Whoever logs in next as <code>frank_ato</code> — the legitimate owner or the attacker — hits <code>mfa_hold</code>'s gate first, before <code>bcrypt</code> even runs: <code>"This account is on hold pending security review - contact an admin."</code> (403), until an admin clears it from the dashboard.</p>
+        <p class="meta">Whoever logs in next as <code>frank_ato</code> — the legitimate owner or the attacker — hits <code>mfa_hold</code> after password verification and lands on a real <b>"Verify it's you"</b> screen (<code>frontend/src/pages/Login.jsx</code>) instead of a token: <code>POST /api/auth/login</code> returns <code>{"mfa_required": true, "access_token": null}</code>. Entering the emailed code at <code>POST /api/auth/verify-otp</code> clears the hold and issues the token — no admin needed, though <code>POST /api/admin/users/{username}/clear-mfa-hold</code> still exists as a fallback for a user who can't reach their registered email.</p>
       </div>
     </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- ACCOUNT TAKEOVER - MFA/OTP FULL LIVE RUN (merged from
+       docs/account_takeover_mfa_otp_live_test.html) -->
+  <!-- ======================================================================= -->
+  <h3 id="ato-mfa-otp-run" style="font-size:1.02rem; margin:32px 0 6px; color:var(--accent-dark);">
+    account-takeover, continued — the MFA → OTP → login flow, full live run
+  </h3>
+  <p class="scenario-sub">The 8-step walkthrough above uses illustrative identifiers
+    (<code>frank_ato</code>) to explain the mechanism. What follows is a second, fully independent live
+    run — a genuine end-to-end pass with a real account (<code>grace_ato_live</code>), captured verbatim
+    the same way as every scenario on this page: real <code>POST /api/auth/login</code> /
+    <code>POST /api/auth/verify-otp</code> requests against the actual running server, a real Claude
+    Sonnet 5 Security LLM Discussion call, real MCP tool execution, and a real OTP written to the local
+    mail outbox (<code>security_gateway/mcp_tools/mail_tool.py</code>, no SMTP server configured for this
+    run) — carried all the way through to the account being cleared and signing in normally again.</p>
+
+  <div class="runinfo">
+    <span class="chip">Mail backend <b>local-outbox</b> (no SMTP_HOST set)</span>
+    <span class="chip">Result <b>10 / 10 HTTP checks passed</b></span>
+  </div>
+
+  <div class="toc">
+    <a href="#ato-setup">Setup</a>
+    <a href="#ato-detect">Detect</a>
+    <a href="#ato-mfa-activate">MFA activates</a>
+    <a href="#ato-login-blocked">Login demands OTP</a>
+    <a href="#ato-otp-verify">OTP verification</a>
+    <a href="#ato-cleared">Cleared &amp; signed in</a>
+  </div>
+
+  <h4 id="ato-setup" style="font-size:0.94rem; margin:26px 0 6px;">Setup — fresh account, then 3 failed logins</h4>
+  <p class="scenario-sub">A brand-new account, <code>grace_ato_live</code>, is created via
+    <code>POST /api/auth/signup</code>, then submits the wrong password 3 times in a row — exactly the
+    "established suspicious context" <code>skills/authentication/account-takeover/SKILL.md</code> requires
+    before a subsequent <i>success</i> can read as a takeover rather than an ordinary typo-correction.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/signup {"username":"grace_ato_live","email":"grace_ato_live@example.com","password":"••••••••••••"}</div>
+    <div class="res ok">200 → {"username":"grace_ato_live","role":"user","mfa_required":false, "access_token":"eyJ…"}</div>
+  </div>
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹wrong›"}  ×3</div>
+    <div class="res err">401 → {"detail":"Invalid username or password"}  (×3, identical each time)</div>
+  </div>
+
+  <h4 id="ato-detect" style="font-size:0.94rem; margin:26px 0 6px;">4th attempt, correct password — takeover pattern fires</h4>
+  <p class="scenario-sub">The 4th submit uses the account's real password. This is the exact signature
+    <code>detection.yaml</code>'s routing rule describes: <code>this_attempt_success=true</code> AND
+    <code>failed_attempts≥3</code> — offered to the Security LLM as a candidate, never auto-decided by
+    that rule alone (account-takeover has no numeric floor of its own; see the SKILL.md).</p>
+
+  <div class="timeline">
+    <div class="step">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>4th submit, this one correct <span class="pill ui">UI</span></h3>
+        <p><code>grace_ato_live</code> typed the wrong password 3 times, then the 4th submit is the real one.</p>
+      </div>
+    </div>
+    <div class="step gate">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>Pre-checks + bcrypt <span class="pill gate">Deterministic</span></h3>
+        <p>No block, no lock, no MFA hold yet on this account. <code>auth.verify_password()</code> — a real
+          bcrypt compare — matches. <code>success = true</code>, but the gateway still runs before any
+          token is issued.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Evidence gathered <span class="pill gate">gather_authentication_evidence()</span></h3>
+        <div class="rowgrid">
+          <span class="k">failed_attempts</span><span class="v">3</span>
+          <span class="k">this_attempt_success</span><span class="v">true</span>
+          <span class="k">recent_attempt_count_1min</span><span class="v">4</span>
+          <span class="k">account_exists</span><span class="v">true</span>
+        </div>
+      </div>
+    </div>
+    <div class="step llm">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning (captured verbatim)</b>"A login just succeeded on this account right after a short burst of failed attempts, which is the classic pattern of a takeover attempt finally guessing correctly rather than an obvious single typo. The failure count is modest and not extreme, so mitigation with a hold pending verification is warranted rather than an outright block."</div>
+        <div class="indicators">
+          <span>successful login following elevated failed_attempts (3) and recent_attempt_count_1min=4 on same account</span>
+          <span>username naming suggests test/simulated ATO scenario</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">account-takeover</span></div>
+        <p class="meta">Verdict: <span class="pill mitigate">MITIGATE · confidence 0.60</span> — the model
+          even flagged the test username itself as a tell, unprompted.</p>
+      </div>
+    </div>
+  </div>
+
+  <h4 id="ato-mfa-activate" style="font-size:0.94rem; margin:26px 0 6px;"><code>require_mfa</code> fires, real OTP emailed</h4>
+  <p class="scenario-sub"><code>require_mfa</code> no longer just flips a bit an admin has to clear. It
+    generates a real 6-digit code, hashes it (bcrypt) into
+    <code>webapp_db.app_users.mfa_otp_hash</code> with a 10-minute expiry, and emails it — real SMTP if
+    <code>SMTP_HOST</code> is configured, otherwise the local outbox this run actually used.</p>
+
+  <div class="timeline">
+    <div class="step mcp">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <p>Both tool calls below are the model's own — name and arguments, grounded in this request's
+          own identity — executed immediately (no category/rate-limit/approval gate on this branch).</p>
+        <div class="toolgrid">
+          <div class="toolrow"><code>require_mfa(username=grace_ato_live)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_login_attempts(username=grace_ato_live)</code><span class="tstat">executed</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="step mail">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>require_mfa's real result <span class="pill mail">mail_tool.py</span></h3>
+        <div class="rowgrid">
+          <span class="k">mfa_hold</span><span class="v">true</span>
+          <span class="k">otp_sent</span><span class="v">true</span>
+          <span class="k">delivered_via</span><span class="v">local-outbox</span>
+          <span class="k">otp_expires_at</span><span class="v">2026-09-03T10:11:39+00:00</span>
+        </div>
+        <p class="meta">Captured directly from the MCP executor's return value, logged verbatim to the
+          SIEM tool (<code>security_gateway/mcp_tools/siem_tool.py</code>) before this response reached
+          the caller.</p>
+      </div>
+    </div>
+    <div class="step mail">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>The actual email <span class="pill mail">webapp_db.mail_outbox</span></h3>
+        <div class="emailcard">
+          <div class="head"><span>To: grace_ato_live@example.com</span><span>via local-outbox</span></div>
+          <div class="subj">Security verification code</div>
+          <div class="body">A sign-in to the account 'grace_ato_live' was flagged by the security gateway for additional verification (account-takeover pattern).
+
+Your one-time verification code is: <span class="otp">876338</span>
+This code expires in 10 minutes.
+
+If this wasn't you, contact an administrator.</div>
+        </div>
+        <p class="meta">Read straight out of <code>GET</code>-able storage (<code>db.list_outbox()</code> /
+          the admin-only <code>GET /api/admin/mail-outbox</code>) — the exact code a real inbox would have
+          shown, not a value invented for this report.</p>
+      </div>
+    </div>
+    <div class="step outcome">
+      <div class="node">4</div>
+      <div class="card">
+        <h3>...but THIS login still succeeds <span class="pill allow">200 · token issued</span></h3>
+        <div class="httpcard">
+          <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹correct›"}  (4th attempt)</div>
+          <div class="res ok">200 → {"mfa_required":false, "access_token":"eyJ…", "role":"user"}</div>
+        </div>
+        <p class="meta"><code>auth_router.py</code> reads the account's <code>mfa_hold</code> field
+          <i>before</i> calling <code>gateway.analyze()</code> — so even though <code>require_mfa</code>
+          flips it to <code>true</code> during this very call, this request's own token still goes out.
+          The hold takes effect starting with the <i>next</i> login — same order-of-operations noted
+          above, now paired with a real challenge instead of a dead end.</p>
+      </div>
+    </div>
+  </div>
+
+  <h4 id="ato-login-blocked" style="font-size:0.94rem; margin:26px 0 6px;">Login test — 5th attempt now demands the code</h4>
+  <p class="scenario-sub">Same password, same account, one login later — this is the login screen a
+    real user (owner or attacker) hits next.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹correct›"}  (5th attempt)</div>
+    <div class="res warn">200 → {"mfa_required":true, "access_token":null, "username":"grace_ato_live", "role":"user"}</div>
+  </div>
+
+  <div class="loginmock" style="margin-top:14px;">
+    <div class="hero">
+      <div class="shield">🛡️</div>
+      <h3>Cyber Defense Assistant</h3>
+      <p>An autonomous SOC copilot that reasons over real MCP tool calls — detection, response, and training, all agent-driven.</p>
+    </div>
+    <div class="form">
+      <div class="badge">CD</div>
+      <h4>Verify it's you</h4>
+      <p class="hint">This account was flagged for a suspicious sign-in pattern. We emailed a 6-digit code — enter it below to finish signing in.</p>
+      <div class="field"><span class="flabel">Verification code</span><div class="finput">••••••</div></div>
+      <div class="btn">Verify and sign in</div>
+    </div>
+  </div>
+  <p class="meta" style="text-align:center; color:var(--muted2); font-size:0.78rem;">
+    <code>frontend/src/pages/Login.jsx</code>'s new second step — rendered the moment
+    <code>login()</code> resolves with <code>mfa_required: true</code>, correct password required to
+    even reach this screen (an attacker without it never learns the account is on hold).</p>
+
+  <h4 id="ato-otp-verify" style="font-size:0.94rem; margin:26px 0 6px;">OTP verification — wrong code rejected, correct code accepted</h4>
+  <p class="scenario-sub"><code>POST /api/auth/verify-otp</code> checks the submitted code against the
+    bcrypt hash stored against the account, with a 5-attempt / 5-minute rate limit
+    (reusing <code>redis_tool</code>'s existing block-identity mechanism) against brute-forcing the
+    6-digit space.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/verify-otp {"username":"grace_ato_live","otp":"000000"}</div>
+    <div class="res err">401 → {"detail":"Incorrect verification code"}</div>
+  </div>
+  <div class="httpcard">
+    <div class="req">POST /api/auth/verify-otp {"username":"grace_ato_live","otp":"876338"}</div>
+    <div class="res ok">200 → {"mfa_required":false, "access_token":"eyJ…", "role":"user"}</div>
+  </div>
+
+  <div class="step verify" style="margin-top:16px;">
+    <div class="node">✓</div>
+    <div class="card">
+      <h3>Account state re-read after verification <span class="pill verify">re-read, not trusted</span></h3>
+      <div class="rowgrid">
+        <span class="k">mfa_hold</span><span class="v">0</span>
+        <span class="k">mfa_otp_hash</span><span class="v">null</span>
+      </div>
+      <p class="meta"><code>db.clear_mfa_otp()</code> lifts the hold and wipes the challenge together —
+        confirmed by reading the row back, not assumed from the 200 response alone.</p>
+    </div>
+  </div>
+
+  <h4 id="ato-cleared" style="font-size:0.94rem; margin:26px 0 6px;">Cleared &amp; signed in — back to a normal login</h4>
+  <p class="scenario-sub">One more login, same password, to confirm the account is genuinely back to a
+    single-step sign-in — not still gated on something the 200 above didn't actually clear.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"grace_ato_live","password":"‹correct›"}  (6th attempt)</div>
+    <div class="res ok">200 → {"mfa_required":false, "access_token":"eyJ…", "role":"user"}</div>
+  </div>
+
+  <div class="note">
+    <b>What changed vs. the original design:</b> the account-takeover walkthrough above used to end at
+    <code>require_mfa</code> setting an admin-clearable hold — "not a fake MFA challenge," but also a dead
+    end for the account owner (403 forever, until an admin manually intervenes). This live run exercises
+    the replacement: a real one-time code, really emailed (SMTP when configured, an honest inspectable
+    local outbox otherwise — never a fake/no-op send per CLAUDE.md Rule 3), that the owner clears
+    themselves via <code>POST /api/auth/verify-otp</code>. The admin override
+    (<code>POST /api/admin/users/{username}/clear-mfa-hold</code>) still exists as a fallback for a user
+    who can't reach their registered email — see
+    <code>skills/authentication/account-takeover/SKILL.md</code>'s "MCP Tools" section.
   </div>
 
   <!-- ======================================================================= -->
@@ -608,6 +868,14 @@
     <code>docs/live_test_results.html</code> / <code>docs/user_journey_login_to_logout.html</code>. See
     <code>docs/AGENTIC_SYSTEM_EXPERIMENT.md</code> for what "agentic" means on this branch, and
     <code>docs/architecture.md</code> for the full pipeline.
+    <br><br>
+    <b>Account-takeover's full MFA/OTP live run</b> is embedded directly below the walkthrough above
+    (<a href="#ato-mfa-otp-run">jump to it</a>) rather than only linked, and also stands alone as
+    <code>docs/account_takeover_mfa_otp_live_test.html</code> if you just want that one flow.
+    <code>docs/all_authentication_skills_live_test.html</code> covers all 8 authentication skills that
+    exist today (these original four plus <code>credential-enumeration</code>,
+    <code>impossible-travel</code>, <code>new-device</code>, and <code>mfa-fatigue</code>), each with a
+    fresh live run of its own.
   </div>
 
 </div>

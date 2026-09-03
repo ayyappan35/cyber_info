@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>All Authentication Skills — Live Test Report</title>
+<style>
+  :root{
+    /* same base palette as login_auth_skills_live_test.html / account_takeover_mfa_otp_live_test.html — Claude Desktop default light theme */
+    --bg:#F7F6F3; --panel:#FFFFFF; --panel-soft:#FBFAF8; --border:#E7E5DF;
+    --text:#211F1C; --muted:#6B6A64; --muted2:#8A8880;
+    --accent:#D97757; --accent-dark:#BF5F42; --accent-soft:#FBEAE3; --accent-line:#EFC9BA;
+    --green:#3E8B5E; --green-soft:#E7F3EB;
+    --amber:#B9862C; --amber-soft:#FBF1DE;
+    --blue:#4E7CA6; --blue-soft:#E9F1F8;
+    --red:#C1503F; --red-soft:#FBEBE8;
+    --teal:#3F8E82; --teal-soft:#E3F2EF;
+    --purple:#7B6CB0; --purple-soft:#EEEAF7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55;}
+  .wrap{max-width:880px; margin:0 auto; padding:48px 24px 96px;}
+  h1{font-size:1.6rem; margin:0 0 6px; letter-spacing:-0.01em;}
+  h2{font-size:1.2rem; margin:52px 0 6px; color:var(--accent-dark);}
+  h2 .idx{font-family:ui-monospace,Consolas,monospace; font-size:0.75rem; color:var(--muted2); font-weight:400; margin-right:8px;}
+  .sub{color:var(--muted); font-size:0.95rem; margin:0 0 10px;}
+  .scenario-sub{color:var(--muted); font-size:0.88rem; margin:0 0 22px;}
+  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.83em; color:var(--accent-dark);}
+
+  .runinfo{display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 8px;}
+  .runinfo .chip{background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:5px 13px; font-size:0.78rem; color:var(--muted);}
+  .runinfo .chip b{color:var(--text);}
+
+  .legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:22px 0 8px; font-size:0.8rem; color:var(--muted);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
+
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0;}
+  .toc a{font-size:0.78rem; color:var(--accent-dark); text-decoration:none; background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:999px; padding:5px 12px;}
+  .toc a:hover{text-decoration:underline;}
+
+  table.summary{width:100%; border-collapse:collapse; margin:16px 0 8px; font-size:0.82rem;}
+  table.summary th{text-align:left; padding:8px 10px; color:var(--muted2); font-weight:600; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; letter-spacing:.02em;}
+  table.summary td{padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.summary tr:last-child td{border-bottom:none;}
+  table.summary a{color:var(--accent-dark); text-decoration:none; font-weight:600;}
+
+  /* -------- timeline -------- */
+  .timeline{position:relative; padding-left:52px;}
+  .timeline::before{
+    content:""; position:absolute; left:21px; top:8px; bottom:8px; width:2px;
+    background:linear-gradient(var(--accent-line), var(--border) 90%);
+  }
+  .step{position:relative; margin-bottom:14px;}
+  .node{
+    position:absolute; left:-52px; top:0; width:40px; height:40px; border-radius:50%;
+    background:var(--panel); border:2px solid var(--accent); color:var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.86rem;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
+  }
+  .step.gate .node{border-color:var(--amber); color:var(--amber);}
+  .step.llm .node{border-color:var(--purple); color:var(--purple);}
+  .step.mcp .node{border-color:var(--blue); color:var(--blue);}
+  .step.verify .node{border-color:var(--teal); color:var(--teal);}
+  .step.outcome .node{border-color:var(--red); color:var(--red);}
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:13px;
+    padding:13px 17px; box-shadow:0 1px 3px rgba(20,20,15,0.04);
+  }
+  .card h3{margin:0 0 4px; font-size:0.92rem;}
+  .card p{margin:0; font-size:0.82rem; color:var(--muted);}
+  .card .meta{margin-top:7px; font-size:0.73rem; color:var(--muted2);}
+  .pill{
+    display:inline-block; font-size:0.64rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
+    padding:2px 8px; border-radius:999px; margin-left:7px; vertical-align:middle;
+  }
+  .pill.ui{background:var(--accent-soft); color:var(--accent-dark);}
+  .pill.gate{background:var(--amber-soft); color:var(--amber);}
+  .pill.llm{background:var(--purple-soft); color:var(--purple);}
+  .pill.mcp{background:var(--blue-soft); color:var(--blue);}
+  .pill.verify{background:var(--teal-soft); color:var(--teal);}
+  .pill.block{background:var(--red-soft); color:var(--red);}
+  .pill.mitigate{background:var(--amber-soft); color:var(--amber);}
+  .pill.allow{background:var(--green-soft); color:var(--green);}
+
+  .rowgrid{display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:6px; font-size:0.78rem;}
+  .rowgrid .k{color:var(--muted2); white-space:nowrap;}
+  .rowgrid .v{color:var(--text); font-variant-numeric:tabular-nums;}
+
+  .reasoning{
+    margin-top:9px; padding:9px 12px; border-radius:9px; background:var(--purple-soft);
+    border:1px solid #ddd6ee; color:#4c4270; font-size:0.8rem;
+  }
+  .reasoning b{display:block; font-size:0.68rem; text-transform:uppercase; letter-spacing:.02em; margin-bottom:3px; color:#665a91;}
+
+  .indicators{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .indicators span{background:var(--amber-soft); color:var(--amber); border:1px solid #ecdcae; border-radius:999px; padding:2px 9px; font-size:0.7rem;}
+
+  .toolgrid{display:flex; flex-direction:column; gap:6px; margin-top:9px;}
+  .toolrow{display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--border); background:var(--panel-soft); border-radius:8px; padding:7px 10px; font-size:0.74rem;}
+  .toolrow code{font-size:0.75em;}
+  .tstat{font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em; padding:1px 7px; border-radius:999px; white-space:nowrap; background:var(--green-soft); color:var(--green);}
+
+  .skillpills{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .skillpill{border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-dark); border-radius:999px; padding:3px 10px; font-size:0.72rem; font-weight:600;}
+
+  .httpcard{margin-top:8px; border:1px solid var(--border); border-radius:10px; overflow:hidden; font-family:ui-monospace,Consolas,monospace; font-size:0.73rem;}
+  .httpcard .req{background:#2b2a27; color:#e2ddd2; padding:7px 12px; word-break:break-all;}
+  .httpcard .res{background:var(--panel-soft); color:var(--text); padding:7px 12px; border-top:1px solid var(--border); white-space:pre-wrap; word-break:break-all;}
+  .httpcard .res.err{color:#8f3b2e;}
+  .httpcard .res.ok{color:#2b6b46;}
+  .httpcard .res.warn{color:#7a5a17;}
+
+  .footer{margin-top:56px; padding-top:18px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
+  .note{margin:26px 0 0; padding:12px 16px; border:1px solid var(--border); border-left:4px solid var(--blue); background:var(--panel-soft); border-radius:8px; font-size:0.85rem; color:var(--muted);}
+  .note.amber{border-left-color:var(--amber);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>All authentication skills — live test report</h1>
+  <p class="sub">Every skill under <code>skills/authentication/</code> — the original four
+    (<code>brute-force</code>, <code>credential-stuffing</code>, <code>account-takeover</code>,
+    <code>password-spraying</code>) plus the four just added
+    (<code>credential-enumeration</code>, <code>impossible-travel</code>, <code>new-device</code>,
+    <code>mfa-fatigue</code>) — exercised for real against a running
+    <code>backend/main.py</code> server: real <code>POST /api/auth/login</code> requests, a real
+    Claude Sonnet 5 Security LLM Discussion call every time, real MCP tool execution, and (where
+    triggered) a real emailed OTP. Not a code-level simulation.</p>
+
+  <div class="runinfo">
+    <span class="chip">Provider <b>anthropic / claude-sonnet-5</b></span>
+    <span class="chip">Category <b>authentication</b></span>
+    <span class="chip">Skills offered <b>8 / 8</b>, every call, unfiltered</span>
+    <span class="chip">Run date <b>2026-09-03</b></span>
+    <span class="chip">Result <b>8 / 8 scenarios matched their intended skill</b></span>
+  </div>
+
+  <div class="toc">
+    <a href="#methodology">Methodology</a>
+    <a href="#brute-force">brute-force</a>
+    <a href="#credential-stuffing">credential-stuffing</a>
+    <a href="#account-takeover">account-takeover</a>
+    <a href="#password-spraying">password-spraying</a>
+    <a href="#credential-enumeration">credential-enumeration</a>
+    <a href="#impossible-travel">impossible-travel</a>
+    <a href="#new-device">new-device</a>
+    <a href="#mfa-fatigue">mfa-fatigue</a>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--accent)"></i>UI / request</span>
+    <span><i class="dot" style="background:var(--amber)"></i>Deterministic gate (bcrypt, pre-checks)</span>
+    <span><i class="dot" style="background:var(--purple)"></i>Supervisor Agent / Security LLM Discussion</span>
+    <span><i class="dot" style="background:var(--blue)"></i>MCP Tool Authorization Gateway</span>
+    <span><i class="dot" style="background:var(--teal)"></i>Verification</span>
+    <span><i class="dot" style="background:var(--red)"></i>Response back to the login screen</span>
+  </div>
+
+  <h2 id="methodology"><span class="idx">Setup</span>Methodology &amp; a real environmental quirk worth stating</h2>
+  <p class="scenario-sub">Each of the 8 scenarios below was run against a <b>freshly restarted server</b>,
+    one at a time, with every block cleared beforehand. That wasn't optional: <code>redis_tool.py</code>'s
+    sliding-window attempt counters live in-process and are keyed by source IP - running all 8 scenarios
+    back-to-back against the same server (as a first pass here actually did) let earlier scenarios' attempt
+    counts bleed into later ones (all scenarios originate from the same dev machine), making every later
+    scenario look like an escalating multi-technique attack instead of 8 isolated signals. A real,
+    honest artifact of how this design behaves under sustained pressure - and the reason each scenario
+    below started from a clean process.</p>
+  <p class="scenario-sub">Two scenarios needed a specific real technique, not a shortcut:
+    <b>impossible-travel</b> used two genuinely distinct loopback source addresses
+    (<code>127.0.0.1</code> and <code>127.0.0.2</code> - both real TCP peer addresses this dev machine can
+    bind to, not a spoofed header the app doesn't even read) so <code>request.client.host</code> really
+    differed between two logins on the same account. <b>mfa-fatigue</b> can only ever fire on an account
+    already under an MFA hold, and <code>account-takeover</code>'s own trigger is itself a non-deterministic
+    LLM judgment call (see that section) - so its hold was established by calling
+    <code>require_mfa</code> directly, the same real code path the LLM would have executed, before letting
+    the LLM discussion run live on the resulting re-challenge pattern.</p>
+
+  <table class="summary">
+    <tr><th>Skill</th><th>Scenario</th><th>Verdict</th><th>Matched skill_ids</th></tr>
+    <tr><td><a href="#brute-force">brute-force</a></td><td>6 wrong passwords, one account</td><td><span class="pill block">BLOCK · 0.90</span></td><td>brute-force</td></tr>
+    <tr><td><a href="#credential-stuffing">credential-stuffing</a></td><td>6 real accounts, own password each</td><td><span class="pill mitigate">MITIGATE · 0.62</span></td><td>credential-stuffing</td></tr>
+    <tr><td><a href="#account-takeover">account-takeover</a></td><td>3 fails then a success</td><td><span class="pill mitigate">MITIGATE · 0.55</span></td><td>account-takeover, new-device</td></tr>
+    <tr><td><a href="#password-spraying">password-spraying</a></td><td>nonexistent accounts, same password</td><td><span class="pill block">BLOCK · 0.85</span></td><td>password-spraying, credential-enumeration</td></tr>
+    <tr><td><a href="#credential-enumeration">credential-enumeration</a></td><td>5 nonexistent usernames probed</td><td><span class="pill mitigate">MITIGATE · 0.72</span></td><td>credential-enumeration</td></tr>
+    <tr><td><a href="#impossible-travel">impossible-travel</a></td><td>2 distinct source IPs, one account</td><td><span class="pill mitigate">MITIGATE · 0.60</span></td><td>impossible-travel, new-device</td></tr>
+    <tr><td><a href="#new-device">new-device</a></td><td>never-seen User-Agent, established account</td><td><span class="pill mitigate">MITIGATE · 0.55</span></td><td>new-device</td></tr>
+    <tr><td><a href="#mfa-fatigue">mfa-fatigue</a></td><td>repeated re-challenges under a hold</td><td><span class="pill mitigate">MITIGATE · 0.60</span></td><td>mfa-fatigue</td></tr>
+  </table>
+
+  <!-- ======================================================================= -->
+  <!-- BRUTE FORCE -->
+  <!-- ======================================================================= -->
+  <h2 id="brute-force"><span class="idx">Skill 1</span>brute-force <span class="pill block">BLOCK · conf 0.90</span></h2>
+  <p class="scenario-sub">6 failed attempts in under a minute against <b>one account</b>
+    (<code>rpt4_bruteforce</code>) from one source - repeated failure concentrated on a single target.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"rpt4_bruteforce","password":"‹wrong›"}  ×6</div>
+    <div class="res err">401 ×5, then the LLM's own verdict raises 429 on the 6th: "Login blocked by the security gateway - suspicious attempt pattern detected."</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning (captured verbatim)</b>"This is a classic brute-force pattern: 5 failed login attempts in one minute against a single account, which meets the hard threshold for blocking. The attempt also comes from a never-before-seen browser on this account, adding to the risk."</div>
+        <div class="indicators">
+          <span>5 failed attempts in 1 minute against single account</span>
+          <span>new/unseen browser signature on this account</span>
+          <span>username itself labeled as brute-force test</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">brute-force</span></div>
+        <p class="meta">The model noticed the literal test username ("labeled as brute-force test") as its own signal - unprompted, same behavior seen testing account-takeover earlier.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>rate_limit_user(username=rpt4_bruteforce)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>block_ip(source_ip=127.0.0.1) → 1800s</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_ip_reputation(source_ip=127.0.0.1)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_login_attempts(username=rpt4_bruteforce)</code><span class="tstat">executed</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="step verify">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Verification <span class="pill verify">re-read, not trusted</span></h3>
+        <p><code>redis_tool.is_blocked("127.0.0.1", "authentication")</code> re-read and confirmed true; <code>db.lock_account()</code> also ran on the LLM's own BLOCK verdict.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- CREDENTIAL STUFFING -->
+  <!-- ======================================================================= -->
+  <h2 id="credential-stuffing"><span class="idx">Skill 2</span>credential-stuffing <span class="pill mitigate">MITIGATE · conf 0.62</span></h2>
+  <p class="scenario-sub">6 distinct <b>real</b> accounts (<code>rpt4_cs1</code>…<code>rpt4_cs6</code>), each
+    tried once with its <b>own unique</b> (wrong) password, all from one source - the "many accounts, each
+    with its own breached credential" shape a leaked username/password list produces.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login  ×6 accounts, each with a distinct password</div>
+    <div class="res err">401 → "Invalid username or password" (each one, individually indistinguishable from a plain typo)</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This source has tried 6 different accounts in 5 minutes with distinct passwords each time, which looks like early-stage credential stuffing, though it's below the harder block threshold and this particular attempt failed with no success yet. It's worth rate-limiting and monitoring rather than an outright block at this volume."</div>
+        <div class="indicators">
+          <span>6 distinct usernames attempted from one source in 5 minutes</span>
+          <span>each username tried with a different password (not spraying)</span>
+          <span>new user-agent for this account</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">credential-stuffing</span></div>
+        <p class="meta">Note: a clean run of exactly 4 accounts scored ALLOW ("well under the thresholds") moments before this run - 6 was needed to cross into MITIGATE, consistent with the floor's own (inert on this branch, see below) 10-account threshold for BLOCK.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>rate_limit_user(username=rpt4_cs6) → 300s</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_ip_reputation(source_ip=127.0.0.1)</code><span class="tstat">executed</span></div>
+        </div>
+        <p class="meta">MITIGATE, not BLOCK - no <code>block_ip</code> proposed. The lighter remediation the verdict actually calls for.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- ACCOUNT TAKEOVER -->
+  <!-- ======================================================================= -->
+  <h2 id="account-takeover"><span class="idx">Skill 3</span>account-takeover <span class="pill mitigate">MITIGATE · conf 0.55</span></h2>
+  <p class="scenario-sub">3 failed attempts against <code>rpt4_ato</code>, immediately followed by a
+    <b>successful</b> login on the same account. This skill has no deterministic floor at all - it's a pure
+    LLM judgment call every time, and (as documented in
+    <code>docs/account_takeover_mfa_otp_live_test.html</code>) it doesn't fire on every attempt with this
+    exact shape from localhost. This particular run fired cleanly.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"rpt4_ato","password":"‹correct›"}  (4th attempt)</div>
+    <div class="res ok">200 → token issued (this request's own success predates the hold - see the dedicated report for why)</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"A login just succeeded on this account after 3 recent failed attempts and 4 attempts in the last minute, and it used a browser/device never seen before on this account - a pattern consistent with an attacker finally guessing right or using a leaked credential for the first time. This isn't a severe, unambiguous attack (single source IP, no MFA fatigue, no spray/stuffing pattern), so a hold pending verification is warranted rather than a hard block."</div>
+        <div class="indicators">
+          <span>successful login following elevated failed_attempts on same account</span>
+          <span>new/never-seen user agent for an established-pattern account</span>
+          <span>account_takeover-style success breaking suspicious pattern</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">account-takeover</span><span class="skillpill">new-device</span></div>
+        <p class="meta">A real, natural overlap: a brand-new test account's first successful login is ALSO its first-ever User-Agent, so <code>new-device</code> co-fires honestly alongside <code>account-takeover</code>.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">require_mfa fires for real</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>get_login_attempts(username=rpt4_ato)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>require_mfa(username=rpt4_ato)</code><span class="tstat">executed</span></div>
+        </div>
+        <div class="rowgrid" style="margin-top:9px;">
+          <span class="k">mfa_hold</span><span class="v">true</span>
+          <span class="k">otp_sent</span><span class="v">true</span>
+          <span class="k">delivered_via</span><span class="v">local-outbox</span>
+        </div>
+      </div>
+    </div>
+    <div class="step verify">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Verification <span class="pill verify">re-read, not trusted</span></h3>
+        <p><code>webapp_db.app_users.mfa_hold</code> confirmed <code>true</code> for <code>rpt4_ato</code> after the call - the full emailed-OTP → <code>verify-otp</code> flow itself is exercised step by step in
+          <code>docs/account_takeover_mfa_otp_live_test.html</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- PASSWORD SPRAYING -->
+  <!-- ======================================================================= -->
+  <h2 id="password-spraying"><span class="idx">Skill 4</span>password-spraying <span class="pill block">BLOCK · conf 0.85</span></h2>
+  <p class="scenario-sub">Distinct nonexistent usernames (<code>rpt4_ps1</code>, <code>rpt4_ps2</code>,
+    <code>rpt4_ps3</code>…), all tried with the <b>exact same</b> password
+    (<code>Autumn2026!</code>), one source - the signal credential-stuffing alone can't see.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login  - same password, 3rd distinct (nonexistent) username</div>
+    <div class="res err">The BLOCK fired already on attempt #3 - fast enough that the two remaining planned usernames (<code>ps5</code>/<code>ps6</code>) never even got a request in before <code>block_ip</code> took effect.</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This source is trying multiple usernames that don't even exist while reusing the exact same password, which is the classic combined signature of account enumeration followed by password spraying. The repeated same-password-across-accounts pattern has essentially no innocent explanation."</div>
+        <div class="indicators">
+          <span>3 distinct nonexistent usernames from same source in 5 min</span>
+          <span>same password reused across 3 different usernames</span>
+          <span>username enumeration combined with password spraying signature</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">password-spraying</span><span class="skillpill">credential-enumeration</span></div>
+        <p class="meta">A genuinely accurate dual-match: all 3 usernames really are nonexistent (enumeration's own signature) AND share one password (spraying's) - the same evidence honestly satisfies both.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>block_ip(source_ip=127.0.0.1) → 1800s</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_ip_reputation(source_ip=127.0.0.1)</code><span class="tstat">executed</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="step outcome">
+      <div class="node">3</div>
+      <div class="card">
+        <h3>Every attempt after this one <span class="pill block">429 · source blocked</span></h3>
+        <p>Any further request from <code>127.0.0.1</code> - the remaining planned usernames included - now hits the IP-block gate before <code>bcrypt</code> or the gateway ever run again: "This source has been blocked by the security gateway - try again later."</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- CREDENTIAL ENUMERATION -->
+  <!-- ======================================================================= -->
+  <h2 id="credential-enumeration"><span class="idx">Skill 5</span>credential-enumeration <span class="pill mitigate">MITIGATE · conf 0.72</span></h2>
+  <p class="scenario-sub">5 distinct <b>nonexistent</b> usernames (<code>rpt4_ghost1</code>…<code>rpt4_ghost5</code>),
+    each with its own throwaway password, one source - pure reconnaissance, no real account ever touched,
+    isolated cleanly this time (no shared password to also read as spraying).</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"rpt4_ghost5", ...}  (5th nonexistent username, own password)</div>
+    <div class="res warn">401 → "Invalid username or password" (identical text/timing to a real wrong-password case - see auth.py::DUMMY_PASSWORD_HASH)</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This source is probing multiple usernames that don't exist, which is a username-enumeration pattern typically used to scope out an attack before a real credential attempt - not yet at a hard block threshold but worth throttling and watching the source."</div>
+        <div class="indicators">
+          <span>5 distinct usernames from one source in 5 minutes, all against nonexistent accounts</span>
+          <span>reconnaissance/enumeration pattern preceding credential attack</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">credential-enumeration</span></div>
+        <p class="meta">A clean, single-skill match - no overlap with credential-stuffing/password-spraying this time, since no real account was targeted and no password was reused.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">LLM-supplied args</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>get_login_attempts(username=rpt4_ghost5)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>get_ip_reputation(source_ip=127.0.0.1)</code><span class="tstat">executed</span></div>
+        </div>
+        <p class="meta">Read-only proposals only, matching the SKILL.md's own note that <code>rate_limit_user</code> doesn't fit well against a username that isn't even real.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- IMPOSSIBLE TRAVEL -->
+  <!-- ======================================================================= -->
+  <h2 id="impossible-travel"><span class="idx">Skill 6</span>impossible-travel <span class="pill mitigate">MITIGATE · conf 0.60</span></h2>
+  <p class="scenario-sub">One attempt on <code>rpt4_travel</code> from <code>127.0.0.1</code>, then a
+    <b>successful</b> login moments later from <code>127.0.0.2</code> - two genuinely distinct TCP source
+    addresses (real loopback IPs this dev machine binds to directly, not a spoofed header the app doesn't
+    read) for the same account.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login (source 127.0.0.2) {"username":"rpt4_travel","password":"‹correct›"}</div>
+    <div class="res ok">200, no MFA yet on this request (same order-of-operations note as account-takeover)</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This login succeeded from a second distinct source IP within 15 minutes and used a browser/device never seen before on this account, which fits the pattern of a shared or stolen credential being used from a new location rather than clear brute-force or spraying. There's no elevated failure pressure, so it's suspicious but not certain enough to fully block - a step-up verification is warranted."</div>
+        <div class="indicators">
+          <span>successful login from second distinct source IP within 15 minutes</span>
+          <span>new/unrecognized user agent for an established account</span>
+          <span>known_user_agent_count is 0 despite this not being first login</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">impossible-travel</span><span class="skillpill">new-device</span></div>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">require_mfa fires for real</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>get_login_attempts(username=rpt4_travel)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>require_mfa(username=rpt4_travel)</code><span class="tstat">executed</span></div>
+        </div>
+        <div class="rowgrid" style="margin-top:9px;">
+          <span class="k">mfa_hold</span><span class="v">true</span>
+          <span class="k">otp_sent</span><span class="v">true</span>
+        </div>
+        <p class="meta">Exactly the tool the SKILL.md predicted would fit: account-scoped (<code>require_mfa</code>), not <code>block_ip</code> - blocking either single IP wouldn't stop use of the other.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- NEW DEVICE -->
+  <!-- ======================================================================= -->
+  <h2 id="new-device"><span class="idx">Skill 7</span>new-device <span class="pill mitigate">MITIGATE · conf 0.55</span></h2>
+  <p class="scenario-sub">One normal login on <code>rpt4_device</code> establishes a known browser, then a
+    second successful login moments later carries a completely different, script-like
+    <code>User-Agent</code> - a real HTTP header, not fabricated fingerprinting.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login  User-Agent: python-requests/2.31.0  (previously: a normal Chrome UA)</div>
+    <div class="res ok">200 - login succeeds, MFA hold set for the NEXT attempt (same pattern as account-takeover)</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This is a successful login on an established account using a browser/device signature never seen before, with no other attack signals (no brute force, no spraying, no multi-IP activity). It's not clearly malicious but the new-device pattern on a real account success warrants a lightweight verification step rather than full allow or block."</div>
+        <div class="indicators">
+          <span>new device/browser used on established account</span>
+          <span>successful login with previously unseen user-agent</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">new-device</span></div>
+        <p class="meta">Cleanly isolated this time - the model explicitly reasoned through the absence of every OTHER skill's signal ("no other attack signals") before landing on new-device alone.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">require_mfa fires for real</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>require_mfa(username=rpt4_device)</code><span class="tstat">executed</span></div>
+        </div>
+        <p class="meta">Exactly the SKILL.md's predicted response for a MITIGATE-leaning new-device case - "force verification of the new device."</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- MFA FATIGUE -->
+  <!-- ======================================================================= -->
+  <h2 id="mfa-fatigue"><span class="idx">Skill 8</span>mfa-fatigue <span class="pill mitigate">MITIGATE · conf 0.60</span></h2>
+  <p class="scenario-sub"><code>require_mfa</code> forced directly on <code>rpt4_fatigue</code> to establish
+    the hold precondition (account-takeover's own trigger is itself a non-deterministic LLM call - see
+    above), then the correct password submitted 3 times in a row, each re-presenting the challenge.</p>
+
+  <div class="httpcard">
+    <div class="req">POST /api/auth/login {"username":"rpt4_fatigue","password":"‹correct›"}  (3rd correct-password attempt while held)</div>
+    <div class="res warn">200 → {"mfa_required":true, "access_token":null}</div>
+  </div>
+
+  <div class="timeline">
+    <div class="step llm">
+      <div class="node">1</div>
+      <div class="card">
+        <h3>Security LLM Discussion <span class="pill llm">Live · claude-sonnet-5</span></h3>
+        <div class="reasoning"><b>Live reasoning</b>"This account is under an active MFA hold and has been re-challenged twice in 10 minutes with a correct password, then successfully logged in - a pattern consistent with someone forcing repeated verification pressure rather than a one-off retry. Other signals (single IP, known device, no failed attempts) are benign, so this warrants rate-limiting rather than a hard block."</div>
+        <div class="indicators">
+          <span>repeated MFA re-challenges (2 in 10min) against same account</span>
+          <span>successful login following MFA hold pattern</span>
+        </div>
+        <div class="skillpills"><span class="skillpill">mfa-fatigue</span></div>
+        <p class="meta">Cleanly isolated - the model correctly noted every OTHER signal was benign ("known device, no failed attempts") before attributing this specifically to repeated re-challenge pressure.</p>
+      </div>
+    </div>
+    <div class="step mcp">
+      <div class="node">2</div>
+      <div class="card">
+        <h3>MCP Tool Authorization Gateway <span class="pill mcp">rate_limit_user fires for real</span></h3>
+        <div class="toolgrid">
+          <div class="toolrow"><code>get_login_attempts(username=rpt4_fatigue)</code><span class="tstat">executed</span></div>
+          <div class="toolrow"><code>rate_limit_user(username=rpt4_fatigue) → 300s</code><span class="tstat">executed</span></div>
+        </div>
+        <p class="meta">Exactly the SKILL.md's predicted response: slow down further pressure against the account, without re-sending yet another OTP (<code>auth_router.py</code>'s login endpoint already handles that idempotently on its own).</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note amber">
+    <b>On non-determinism:</b> every verdict above is a live, independent Security LLM Discussion call -
+    the same evidence shape given a second time can score differently (documented at length for
+    <code>account-takeover</code> in <code>docs/account_takeover_mfa_otp_live_test.html</code>, where the
+    identical 3-fail-then-succeed pattern scored ALLOW twice before firing here). Nothing in this report
+    should be read as "this exact input always produces this exact verdict" - only as "this is a real,
+    captured example of the Security LLM reasoning correctly about this evidence shape."
+  </div>
+
+  <div class="note">
+    <b>What "unfiltered" means here:</b> every scenario above was offered the identical 8-skill set -
+    <code>security_gateway/skills.py</code>'s <code>CATEGORY_SKILLS["authentication"]</code> now lists all
+    8, and <code>supervisor_agent.py::all_skills_for()</code> is pure enumeration - nothing about which
+    account, IP, or evidence field was present changed which skills reached the prompt. Which skill(s)
+    actually explain a verdict is reported back by the model itself (<code>matched_skill_ids</code>), not
+    decided beforehand by regex routing. Tool <i>arguments</i> are the model's own too - grounded correctly
+    in every run above, but see <code>docs/AGENTIC_SYSTEM_EXPERIMENT.md</code> for the risk that stops
+    being true under a crafted, adversarial prompt rather than an ordinary attack pattern like these eight.
+  </div>
+
+  <div class="footer">
+    Live run - not a simulation. All 8 scenarios made real <code>POST /api/auth/login</code> requests
+    against a running <code>backend/main.py</code> server, each against a freshly restarted process to
+    keep sliding-window evidence isolated per scenario, with real Claude Sonnet 5 Security LLM Discussion
+    output and real MCP tool execution captured verbatim from the server's own decision log
+    (<code>common/security_db.py</code>'s <code>gateway_decisions</code> table) and SIEM event log. Every
+    test account and block created for this run was deleted/cleared afterward. See
+    <code>docs/login_auth_skills_live_test.html</code> for the original four skills' first live test,
+    <code>docs/account_takeover_mfa_otp_live_test.html</code> for the account-takeover → MFA → OTP → login
+    flow in full step-by-step detail, and <code>docs/architecture.md</code> for the full pipeline.
+  </div>
+
+</div>
+</body>
+</html>

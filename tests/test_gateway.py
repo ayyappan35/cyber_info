@@ -324,7 +324,10 @@ async def test_supervisor_selection_is_the_full_taxonomy_scope(monkeypatch, temp
     monkeypatch.setattr(gateway, "discuss", fake_discuss)
 
     result = await gateway.analyze("authentication", "mia", {"username": "mia"})
-    assert set(result.skill_ids) == {"credential-stuffing", "account-takeover", "brute-force", "password-spraying"}
+    assert set(result.skill_ids) == {
+        "credential-stuffing", "account-takeover", "brute-force", "password-spraying",
+        "credential-enumeration", "impossible-travel", "new-device", "mfa-fatigue",
+    }
 
 
 async def test_floor_no_longer_fires_regardless_of_llm_verdict_or_selection(monkeypatch, temp_sqlite_path):
@@ -437,7 +440,10 @@ async def test_hallucinated_matched_skill_id_falls_back_to_full_offered_set(monk
     result = await gateway.analyze("authentication", "peter", {"username": "peter"})
     # The bogus name is dropped, never crashes - falls back to the full
     # offered set rather than silently reporting nothing.
-    assert set(result.skill_ids) == {"credential-stuffing", "account-takeover", "brute-force", "password-spraying"}
+    assert set(result.skill_ids) == {
+        "credential-stuffing", "account-takeover", "brute-force", "password-spraying",
+        "credential-enumeration", "impossible-travel", "new-device", "mfa-fatigue",
+    }
 
 
 async def test_clamp_action_is_never_called_anymore(monkeypatch, temp_sqlite_path):
