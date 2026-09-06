@@ -15,6 +15,9 @@ kb_chroma_db/
 # Quarantined uploads (real third-party content, never source control)
 sandbox/
 
+# Step-by-step security gateway pipeline log (common/logging_config.py)
+logs/
+
 # Python
 venv/
 __pycache__/

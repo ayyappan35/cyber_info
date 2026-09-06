@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login Authentication Skills — Detection &amp; Policy Reference</title>
+<style>
+  :root{
+    /* same base palette as login_auth_skills_live_test.html / live_test_results.html — Claude Desktop default light theme */
+    --bg:#F7F6F3; --panel:#FFFFFF; --panel-soft:#FBFAF8; --border:#E7E5DF;
+    --text:#211F1C; --muted:#6B6A64; --muted2:#8A8880;
+    --accent:#D97757; --accent-dark:#BF5F42; --accent-soft:#FBEAE3; --accent-line:#EFC9BA;
+    --green:#3E8B5E; --green-soft:#E7F3EB;
+    --amber:#B9862C; --amber-soft:#FBF1DE;
+    --blue:#4E7CA6; --blue-soft:#E9F1F8;
+    --red:#C1503F; --red-soft:#FBEBE8;
+    --teal:#3F8E82; --teal-soft:#E3F2EF;
+    --purple:#7B6CB0; --purple-soft:#EEEAF7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.55;}
+  .wrap{max-width:880px; margin:0 auto; padding:48px 24px 96px;}
+  h1{font-size:1.6rem; margin:0 0 6px; letter-spacing:-0.01em;}
+  h2{font-size:1.2rem; margin:52px 0 6px; color:var(--accent-dark);}
+  h2 .idx{font-family:ui-monospace,Consolas,monospace; font-size:0.75rem; color:var(--muted2); font-weight:400; margin-right:8px;}
+  .sub{color:var(--muted); font-size:0.95rem; margin:0 0 10px;}
+  .scenario-sub{color:var(--muted); font-size:0.88rem; margin:0 0 22px;}
+  code{background:var(--panel-soft); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.83em; color:var(--accent-dark);}
+
+  .runinfo{display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 8px;}
+  .runinfo .chip{background:var(--panel); border:1px solid var(--border); border-radius:999px; padding:5px 13px; font-size:0.78rem; color:var(--muted);}
+  .runinfo .chip b{color:var(--text);}
+
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0;}
+  .toc a{font-size:0.78rem; color:var(--accent-dark); text-decoration:none; background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:999px; padding:5px 12px;}
+  .toc a:hover{text-decoration:underline;}
+
+  .note{margin:26px 0 0; padding:12px 16px; border:1px solid var(--border); border-left:4px solid var(--blue); background:var(--panel-soft); border-radius:8px; font-size:0.85rem; color:var(--muted);}
+
+  .layercard{
+    background:var(--panel); border:1px solid var(--border); border-radius:13px;
+    padding:16px 20px; box-shadow:0 1px 3px rgba(20,20,15,0.04); margin-bottom:14px;
+  }
+  .layercard h3{margin:0 0 8px; font-size:0.92rem; display:flex; align-items:center; gap:8px;}
+  .layerbadge{
+    font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 9px; border-radius:999px;
+  }
+  .layerbadge.detect{background:var(--purple-soft); color:var(--purple);}
+  .layerbadge.policy{background:var(--blue-soft); color:var(--blue);}
+  .layerbadge.override{background:var(--amber-soft); color:var(--amber);}
+  .layerbadge.enforce{background:var(--red-soft); color:var(--red);}
+
+  pre.yaml{
+    background:#211F1C; color:#E2DDD2; border-radius:9px; padding:12px 14px; font-size:0.76rem;
+    overflow-x:auto; margin:0; font-family:ui-monospace,Consolas,monospace; line-height:1.6;
+  }
+  pre.yaml .k{color:#8FBFDB;} pre.yaml .v{color:#E5C07B;} pre.yaml .s{color:#98C379;} pre.yaml .c{color:#7A7770;}
+
+  .rowgrid{display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:6px; font-size:0.79rem;}
+  .rowgrid .k{color:var(--muted2); white-space:nowrap;}
+  .rowgrid .v{color:var(--text); font-variant-numeric:tabular-nums;}
+
+  .pill{
+    display:inline-block; font-size:0.64rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
+    padding:2px 8px; border-radius:999px; margin-left:7px; vertical-align:middle;
+  }
+  .pill.block{background:var(--red-soft); color:var(--red);}
+  .pill.mitigate{background:var(--amber-soft); color:var(--amber);}
+  .pill.allow{background:var(--green-soft); color:var(--green);}
+  .pill.none{background:var(--panel-soft); color:var(--muted2); border:1px solid var(--border);}
+
+  table.reftable{width:100%; border-collapse:collapse; font-size:0.79rem; margin-top:10px;}
+  table.reftable th{text-align:left; color:var(--muted2); font-weight:600; padding:6px 10px; border-bottom:2px solid var(--border); font-size:0.72rem; text-transform:uppercase; letter-spacing:.02em;}
+  table.reftable td{padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.reftable tr:last-child td{border-bottom:none;}
+
+  .overflow-x{overflow-x:auto;}
+
+  .footer{margin-top:56px; padding-top:18px; border-top:1px solid var(--border); font-size:0.78rem; color:var(--muted2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Login authentication skills — detection &amp; policy reference</h1>
+  <p class="sub">Not a live-run walkthrough (that's <code>docs/login_auth_skills_live_test.html</code>) —
+    this page is the source-of-truth reference: what <code>detection.yaml</code> declares per skill, what
+    <code>policies/security_gateway_policy.yaml</code> enforces per category, and what each skill's own
+    <code>response.yaml</code> overrides. Per CLAUDE.md section 7's distinction: <b>SKILL</b> = how to
+    investigate, <b>POLICY</b> = what's permitted, <b>LLM</b> = reasons about context, <b>MCP</b> = executes
+    the authorized action. The four files below are what actually get read by
+    <code>security_gateway/detection.py</code> and <code>security_gateway/policy.py</code> — every value
+    quoted here is copied verbatim from the real files, not paraphrased.</p>
+
+  <div class="runinfo">
+    <span class="chip">Category <b>authentication</b></span>
+    <span class="chip">min_confidence_to_enforce <b>0.55</b></span>
+    <span class="chip">fail_closed_action <b>MITIGATE</b></span>
+    <span class="chip">Skills with a floor <b>3 / 4</b> (account-takeover deliberately has none)</span>
+  </div>
+
+  <div class="toc">
+    <a href="#layers">The four layers</a>
+    <a href="#brute-force">brute-force</a>
+    <a href="#credential-stuffing">credential-stuffing</a>
+    <a href="#account-takeover">account-takeover</a>
+    <a href="#password-spraying">password-spraying</a>
+    <a href="#summary">Summary table</a>
+  </div>
+
+  <h2 id="layers"><span class="idx">Ref</span>The four layers, and where each skill's rules actually live</h2>
+  <div class="layercard">
+    <h3><span class="layerbadge detect">1 · detect</span><code>skills/authentication/&lt;skill&gt;/detection.yaml</code></h3>
+    <p class="scenario-sub" style="margin:0;"><b>signals</b> — the evidence fields this skill cares about.
+      <b>routing</b> — now inert (see <code>docs/login_auth_skills_live_test.html</code>'s standing
+      correction: every skill is always offered to the Security LLM regardless, so this never actually
+      filters anything today). <b>floor</b> — the one part that's still live code:
+      <code>detection.py::apply_floor()</code>, called from <code>gateway.py::analyze()</code> <i>after</i>
+      the Security LLM's own verdict (the model is always asked first, regardless of how unambiguous the
+      evidence already looks — an earlier pre-emptive fast path that skipped the model call entirely for a
+      hard floor hit was tried and then deliberately removed, so the model always gets a chance to reason),
+      then raises the action to a guaranteed minimum whenever evidence alone matches — the LLM cannot talk
+      this back down.</p>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge policy">2 · policy (category default)</span><code>policies/security_gateway_policy.yaml</code></h3>
+    <p class="scenario-sub" style="margin:0;">One config block per <code>request_category</code>
+      (<code>authentication</code>, <code>rag_security</code>, <code>file_security</code>,
+      <code>agent_security</code>) — <code>actions.&lt;ACTION&gt;.enabled</code> and
+      <code>min_confidence_to_enforce</code>, read by <code>policy.py::clamp_action()</code>, plus each
+      action's <code>effect</code> (what actually happens — <code>redis_block</code>, <code>log_only</code>,
+      ...) and config values like <code>block_ttl_seconds</code>, read by
+      <code>policy.py::action_effect()</code>/<code>action_config_value()</code>. Applies to <i>every</i>
+      skill in the category unless a skill's own <code>response.yaml</code> overrides it.</p>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge override">3 · policy (skill override)</span><code>skills/authentication/&lt;skill&gt;/response.yaml</code></h3>
+    <p class="scenario-sub" style="margin:0;">Optional, skill-specific. <code>overrides.&lt;ACTION&gt;</code>
+      can change that action's <code>effect</code> or any config value just for this one skill — e.g.
+      credential-stuffing/password-spraying's longer <code>block_ttl_seconds</code>, or account-takeover's
+      MITIGATE getting sandboxed instead of just logged. Falls back to layer 2's category default for
+      anything not overridden.</p>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge enforce">4 · enforcement</span><code>security_gateway/mcp_gateway.py</code> + <code>gateway.py</code>'s effect handling</h3>
+    <p class="scenario-sub" style="margin:0;">The resolved <code>effect</code> from layers 2/3 drives what
+      actually happens: <code>redis_block</code> → <code>redis_tool.block_identity()</code> (always the
+      <b>username</b>, automatic on every BLOCK — see <code>login_auth_skills_live_test.html</code>'s "IP
+      block vs. username block"), <code>sandbox_and_continue</code>/<code>log_only</code> → quarantine or
+      just a SIEM line, and any LLM-proposed tool (<code>block_ip</code>, <code>rate_limit_user</code>, ...)
+      goes through <code>mcp_gateway.py</code>'s own category-scope/rate-limit/<code>requires_approval</code>
+      gate independently.</p>
+  </div>
+
+  <!-- ======================================================================= -->
+  <h2 id="brute-force"><span class="idx">Skill 1</span>brute-force</h2>
+  <p class="scenario-sub">1 account, many passwords. The default/fallback skill for the category — no
+    routing rule of its own, matched only when nothing more specific applies.</p>
+
+  <div class="layercard">
+    <h3><span class="layerbadge detect">detection.yaml</span></h3>
+<pre class="yaml"><span class="k">skill_id</span>: <span class="s">brute-force</span>
+<span class="k">category</span>: <span class="s">authentication</span>
+<span class="k">default</span>: <span class="v">true</span>   <span class="c"># fallback when neither credential-stuffing nor account-takeover's routing rule matches</span>
+
+<span class="c"># No routing rule - this skill is the default/fallback for the category.</span>
+
+<span class="k">floor</span>:
+  <span class="k">field</span>: <span class="s">recent_attempt_count_1min</span>
+  <span class="k">op</span>: <span class="s">gte</span>
+  <span class="k">value</span>: <span class="v">5</span>
+  <span class="k">minimum_action</span>: <span class="s">BLOCK</span>
+  <span class="k">reason</span>: <span class="s">"5+ attempts against one account in a single minute is unambiguous - never left to model judgment alone."</span></pre>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge policy">policy.yaml (category default, authentication)</span></h3>
+<pre class="yaml">  <span class="k">BLOCK</span>:
+    <span class="k">enabled</span>: <span class="v">true</span>
+    <span class="k">effect</span>: <span class="s">redis_block</span>       <span class="c"># identity added to the Redis/local block list</span>
+    <span class="k">block_ttl_seconds</span>: <span class="v">900</span></pre>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge override">response.yaml override</span></h3>
+<pre class="yaml"><span class="k">overrides</span>:
+  <span class="k">BLOCK</span>:
+    <span class="k">block_ttl_seconds</span>: <span class="v">900</span>   <span class="c"># restates the category default explicitly, no actual change</span></pre>
+    <p class="scenario-sub" style="margin:8px 0 0;">No real override here — 15 minutes is both the category
+      default and this skill's own stated value.</p>
+  </div>
+
+  <!-- ======================================================================= -->
+  <h2 id="credential-stuffing"><span class="idx">Skill 2</span>credential-stuffing</h2>
+  <p class="scenario-sub">1 IP, many accounts, each its own password.</p>
+
+  <div class="layercard">
+    <h3><span class="layerbadge detect">detection.yaml</span></h3>
+<pre class="yaml"><span class="k">routing</span>:
+  - <span class="k">field</span>: <span class="s">distinct_usernames_from_source_5min</span>
+    <span class="k">op</span>: <span class="s">gte</span>
+    <span class="k">value</span>: <span class="v">3</span>
+    <span class="k">reason</span>: <span class="s">"3+ distinct accounts from one source in 5 minutes is a spray pattern, not single-account brute force."</span>
+
+<span class="k">floor</span>:
+  <span class="k">field</span>: <span class="s">distinct_usernames_from_source_5min</span>
+  <span class="k">op</span>: <span class="s">gte</span>
+  <span class="k">value</span>: <span class="v">10</span>
+  <span class="k">minimum_action</span>: <span class="s">BLOCK</span>
+  <span class="k">reason</span>: <span class="s">"10+ distinct accounts from one source has essentially no innocent explanation."</span></pre>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge policy">policy.yaml (category default)</span> — same as brute-force above (one <code>authentication</code> block covers all four)</h3>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge override">response.yaml override</span></h3>
+<pre class="yaml"><span class="k">overrides</span>:
+  <span class="k">BLOCK</span>:
+    <span class="k">block_ttl_seconds</span>: <span class="v">1800</span>   <span class="c"># 30 min - longer than brute-force's 15, a spraying source is more likely automated/persistent</span></pre>
+  </div>
+
+  <!-- ======================================================================= -->
+  <h2 id="account-takeover"><span class="idx">Skill 3</span>account-takeover</h2>
+  <p class="scenario-sub">≥3 failures → success, same account. <b>The one skill of the four with no floor</b> —
+    a deliberate design choice, not an omission.</p>
+
+  <div class="layercard">
+    <h3><span class="layerbadge detect">detection.yaml</span></h3>
+<pre class="yaml"><span class="k">routing</span>:
+  - <span class="k">field</span>: <span class="s">this_attempt_success</span>
+    <span class="k">op</span>: <span class="s">eq</span>
+    <span class="k">value</span>: <span class="v">true</span>
+    <span class="k">and</span>:
+      <span class="k">field</span>: <span class="s">failed_attempts</span>
+      <span class="k">op</span>: <span class="s">gte</span>
+      <span class="k">value</span>: <span class="v">3</span>
+    <span class="k">reason</span>: <span class="s">"A success immediately after 3+ recent failures on the SAME account is the takeover signature, not ordinary typo-correction."</span>
+
+<span class="c"># No floor - see SKILL.md's "what security boundaries apply" for why this
+# is a deliberate choice, not an omission. Whether this fires is entirely
+# the model's call - see the two real, opposite live outcomes for this
+# exact evidence shape in login_auth_skills_live_test.html.</span></pre>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge policy">policy.yaml (category default)</span></h3>
+<pre class="yaml">  <span class="k">MITIGATE</span>:
+    <span class="k">enabled</span>: <span class="v">true</span>
+    <span class="k">effect</span>: <span class="s">log_only</span>          <span class="c"># flagged in SIEM, login still proceeds on correct password</span></pre>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge override">response.yaml override — the one real behavioral difference on this page</span></h3>
+<pre class="yaml"><span class="k">overrides</span>:
+  <span class="k">MITIGATE</span>:
+    <span class="k">effect</span>: <span class="s">sandbox_and_continue</span>   <span class="c"># unlike brute-force/credential-stuffing's plain log_only - this success needs a reviewable record, not just a log line</span></pre>
+    <p class="scenario-sub" style="margin:8px 0 0;">This is the only place any of the four skills actually
+      overrides its category's <i>effect</i> (not just a config value like TTL): a <code>MITIGATE</code>
+      account-takeover verdict genuinely writes a <code>sandbox_items</code> row (the message/evidence
+      quarantined for review) even though the login itself still succeeds — brute-force and
+      credential-stuffing's own MITIGATE never does that, they only log.</p>
+  </div>
+
+  <!-- ======================================================================= -->
+  <h2 id="password-spraying"><span class="idx">Skill 4</span>password-spraying</h2>
+  <p class="scenario-sub">1 IP, same password, many accounts. Its own floor sits lower than
+    credential-stuffing's — same-password-across-accounts is judged a stronger signal than distinct
+    accounts alone.</p>
+
+  <div class="layercard">
+    <h3><span class="layerbadge detect">detection.yaml</span></h3>
+<pre class="yaml"><span class="k">routing</span>:
+  - <span class="k">field</span>: <span class="s">distinct_usernames_same_password_5min</span>
+    <span class="k">op</span>: <span class="s">gte</span>
+    <span class="k">value</span>: <span class="v">2</span>
+    <span class="k">reason</span>: <span class="s">"Even 2 distinct accounts sharing an identical submitted password from one source is worth discussing - real users essentially never coincide on this."</span>
+
+<span class="k">floor</span>:
+  <span class="k">field</span>: <span class="s">distinct_usernames_same_password_5min</span>
+  <span class="k">op</span>: <span class="s">gte</span>
+  <span class="k">value</span>: <span class="v">5</span>
+  <span class="k">minimum_action</span>: <span class="s">BLOCK</span>
+  <span class="k">reason</span>: <span class="s">"5+ distinct accounts sharing an identical submitted password has essentially no innocent explanation - a lower bar than credential-stuffing's 10."</span></pre>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge policy">policy.yaml (category default)</span> — same as brute-force above</h3>
+  </div>
+  <div class="layercard">
+    <h3><span class="layerbadge override">response.yaml override</span></h3>
+<pre class="yaml"><span class="k">overrides</span>:
+  <span class="k">BLOCK</span>:
+    <span class="k">block_ttl_seconds</span>: <span class="v">1800</span>   <span class="c"># matches credential-stuffing's - a spraying source is more likely automated/persistent</span></pre>
+  </div>
+
+  <!-- ======================================================================= -->
+  <h2 id="summary"><span class="idx">Ref</span>Summary — every number, one table</h2>
+  <div class="overflow-x">
+  <table class="reftable">
+    <tr><th>Skill</th><th>Routing (inert)</th><th>Floor</th><th>BLOCK effect</th><th>BLOCK TTL</th><th>MITIGATE effect</th></tr>
+    <tr>
+      <td><b>brute-force</b></td>
+      <td><span class="pill none">none — default fallback</span></td>
+      <td><code>recent_attempt_count_1min ≥ 5</code> <span class="pill block">BLOCK</span></td>
+      <td><code>redis_block</code></td>
+      <td>900s (15 min)</td>
+      <td><code>log_only</code></td>
+    </tr>
+    <tr>
+      <td><b>credential-stuffing</b></td>
+      <td><code>distinct_usernames_from_source_5min ≥ 3</code></td>
+      <td><code>distinct_usernames_from_source_5min ≥ 10</code> <span class="pill block">BLOCK</span></td>
+      <td><code>redis_block</code></td>
+      <td>1800s (30 min)</td>
+      <td><code>log_only</code></td>
+    </tr>
+    <tr>
+      <td><b>account-takeover</b></td>
+      <td><code>this_attempt_success=true AND failed_attempts ≥ 3</code></td>
+      <td><span class="pill none">none — deliberate</span></td>
+      <td><i>n/a — never seen live</i></td>
+      <td><i>n/a</i></td>
+      <td><code>sandbox_and_continue</code> <span class="pill mitigate">overridden</span></td>
+    </tr>
+    <tr>
+      <td><b>password-spraying</b></td>
+      <td><code>distinct_usernames_same_password_5min ≥ 2</code></td>
+      <td><code>distinct_usernames_same_password_5min ≥ 5</code> <span class="pill block">BLOCK</span></td>
+      <td><code>redis_block</code></td>
+      <td>1800s (30 min)</td>
+      <td><code>log_only</code></td>
+    </tr>
+  </table>
+  </div>
+  <p class="scenario-sub" style="margin-top:10px;"><code>min_confidence_to_enforce: 0.55</code> applies to all
+    four uniformly (category-level, no skill overrides it) — <code>policy.py::clamp_action()</code> steps a
+    proposal below that down one level, regardless of which of these four the verdict is attributed to.</p>
+
+  <div class="note">
+    <b>Every value on this page is quoted verbatim</b> from
+    <code>skills/authentication/&lt;skill&gt;/detection.yaml</code>,
+    <code>skills/authentication/&lt;skill&gt;/response.yaml</code>, and
+    <code>policies/security_gateway_policy.yaml</code> as they exist in the repository today — nothing
+    here is illustrative or simplified. For these same four rules caught firing against real accounts (the
+    <code>test</code> account, real demo accounts, real Claude Sonnet 5 verdicts), see
+    <code>docs/login_auth_skills_live_test.html</code>.
+  </div>
+
+  <div class="footer">
+    Reference page, not a live run — see <code>docs/login_auth_skills_live_test.html</code> for the real
+    HTTP-level walkthroughs of these same four skills, and <code>docs/architecture.md</code> /
+    <code>docs/AGENTIC_SYSTEM_EXPERIMENT.md</code> for the full pipeline and the restoration history of the
+    policy boundary these files feed into.
+  </div>
+
+</div>
+</body>
+</html>

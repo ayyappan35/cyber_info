@@ -77,24 +77,24 @@ async def send_message(body: AgentMessageRequest, request: Request, admin: str =
     tool_result = None
     tool_denied_reason = None
     if result.action == "ALLOW":
-        # agentic_system branch: mcp_gateway.py's TOOL_CATALOG
-        # allowed_categories is no longer enforced by authorize_and_execute()
-        # (see that function's own docstring) - passing the agent_security
-        # discussion is now the only gate before body.requested_tool
-        # executes, whatever it names. get_ip_reputation remains the only
-        # tool this catalog entry documents as intended for the
-        # agent-to-agent path; every other tool_name reaching here is a
-        # deliberate, documented regression from main's original
-        # category-scoped design, not something this endpoint still stops.
-        # This endpoint's only structurally-intended target is
-        # get_ip_reputation (see the comment above) - its one argument is
-        # built here, from this request's own evidence, the same way
-        # every tool's arguments used to be built centrally in
-        # mcp_gateway.py::_args_for() before that dispatch table was
-        # removed (see mcp_gateway.py's module docstring). A
-        # body.requested_tool naming any other tool will reach
-        # authorize_and_execute() with this same argument shape and most
-        # likely be denied there as invalid arguments, not executed.
+        # mcp_gateway.py's TOOL_CATALOG allowed_categories IS enforced by
+        # authorize_and_execute() (restored - see that function's own
+        # docstring): get_ip_reputation is the only tool this catalog
+        # entry documents as intended for the agent-to-agent path
+        # (allowed_categories includes "agent_security"); a
+        # body.requested_tool naming block_ip/terminate_session/
+        # revoke_agent_credentials/etc. is structurally denied
+        # "denied_out_of_scope" here regardless of what the agent_security
+        # discussion above concluded - no agent, however trusted, can
+        # reach a tool this catalog didn't scope to agent_security. This
+        # endpoint's own argument-building is still narrow/single-purpose
+        # (only ever builds {"source_ip": ...}, the same way every tool's
+        # arguments used to be built centrally in
+        # mcp_gateway.py::_args_for() before that specific dispatch table
+        # was removed - see mcp_gateway.py's module docstring) - a
+        # body.requested_tool naming a tool that DOES pass category scope
+        # but expects a different argument shape still gets denied as
+        # invalid arguments, not executed.
         exec_result = mcp_gateway.authorize_and_execute(
             body.requested_tool, "agent_security", body.sender_agent_id,
             {"source_ip": evidence.get("source_ip", "unknown")}, decision_id=result.decision_id,

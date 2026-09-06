@@ -122,6 +122,19 @@ async def login(body: LoginRequest, request: Request):
 
     db.reset_failed_login(username)
 
+    # Re-fetch: `user` above is the snapshot taken BEFORE gateway.analyze()
+    # ran, and analyze() can itself call the require_mfa MCP tool mid-request
+    # (a MITIGATE verdict on THIS same successful login, e.g. account-takeover
+    # suspicion from a new device) - db.set_mfa_hold() already wrote mfa_hold=
+    # True by the time we get here, but the stale snapshot would still read
+    # False and hand back a bare access token instead of an MFA challenge for
+    # the very request that triggered the hold. Real, observed gap (2026-09-06
+    # live test): a 4-fail-then-success attempt from an unfamiliar User-Agent
+    # correctly got MITIGATE + require_mfa executed (OTP emailed, mfa_hold=1
+    # in the DB), but this response still returned a usable bearer token
+    # because `user` here hadn't been refreshed since line ~83.
+    user = db.get_user(username)
+
     # require_mfa (security_gateway/mcp_gateway.py) - only checked AFTER a
     # correct password, so an attacker without the password never learns
     # an account is under an account-takeover hold. The real challenge

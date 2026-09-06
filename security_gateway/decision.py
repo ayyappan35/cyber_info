@@ -49,12 +49,14 @@ class SecurityDecision(BaseModel):
     # this only narrows what gets RECORDED as relevant (skill_ids, the
     # skill used for policy.py's per-skill response.yaml override lookup)
     # - it never narrows what gets REASONED about (every offered skill's
-    # content is still in the prompt). agentic_system branch: detection.py's
-    # floor/ceiling are no longer called from gateway.py at all - this
-    # field only affects the audit trail (skill_ids, the per-skill
-    # policy.py response.yaml lookup), not any remaining deterministic
-    # enforcement, because there isn't any left to bypass or not-bypass
-    # (see docs/AGENTIC_SYSTEM_EXPERIMENT.md). Validated against the
+    # content is still in the prompt), and it never narrows what gets
+    # ENFORCED either: gateway.py's floor/ceiling loop (restored
+    # 2026-09-06 - see docs/AGENTIC_SYSTEM_EXPERIMENT.md) evaluates EVERY
+    # skill the Supervisor Agent offered, not just the ones named here -
+    # a floor must not depend on the model correctly attributing its own
+    # attack to the right skill. This field's only effects are the audit
+    # trail (skill_ids) and which skill's response.yaml override
+    # policy.clamp_action()/action_effect() use. Validated against the
     # actual skill_ids offered in gateway.py, not here - a hallucinated
     # name is dropped there rather than failing the whole decision, same
     # as required_tools.

@@ -9,27 +9,33 @@ Discussion node proposed this tool call" and "this tool actually executes."
     mcp_gateway.authorize_and_execute()   <- THIS MODULE
             |
       1. tool exists in TOOL_CATALOG?
-      2. execute the tool's real implementation with the LLM-supplied
-         arguments now (any KeyError/TypeError/ValueError the executor
-         raises over a missing/malformed argument is caught here and
-         denied, never allowed to crash the request)
+      2. tool's allowed_categories includes this request's category?
+      3. rate limit not exceeded?
+      4. requires_approval? -> queue in security_db.pending_tool_calls
+         (backend/routers/security_router.py's /api/security/tool-calls,
+         the Admin Dashboard's "Pending tool approvals" tab), do NOT
+         execute
+      5. else -> execute the tool's real implementation with the
+         LLM-supplied arguments now (any KeyError/TypeError/ValueError the
+         executor raises over a missing/malformed argument is caught here
+         and denied, never allowed to crash the request)
             |
             v
       logged to SIEM either way
 
-agentic_system branch, 2026-09-02: arguments are now taken directly from
-the Security LLM's own ToolCall.arguments (security_gateway/decision.py) -
-the deterministic per-tool-name argument builder that used to live here
-(`_args_for()`, keyed on tool_name, pulling values only from the current
-request's own trusted evidence/identity) has been removed entirely. This
-is a further, deliberate regression from main's original design in the
-same spirit as the category-scoping/rate-limit/approval-gate removal
-below: the LLM proposing WHICH tool applies AND what arguments it takes
-is fully trusted, with no independent grounding check that an argument
-(a source_ip, a username, a document_id) actually belongs to this
-request. A prompt-injected message can now steer block_ip/terminate_session/
-disclose_pii_answer/etc. at an attacker-chosen target, not just the
-current request's own identity/evidence - see docs/AGENTIC_SYSTEM_EXPERIMENT.md.
+Arguments still come directly from the Security LLM's own
+ToolCall.arguments (security_gateway/decision.py), not a deterministic
+per-tool-name builder (`_args_for()`, keyed on tool_name, pulling values
+only from the current request's own trusted evidence/identity) - that
+remains intentionally NOT restored (see docs/AGENTIC_SYSTEM_EXPERIMENT.md
+for what removing it changed): the LLM proposing WHICH tool applies is
+now gated by the three checks above, but WHAT ARGUMENTS it takes is still
+fully trusted, with no independent grounding check that an argument (a
+source_ip, a username, a document_id) actually belongs to this request.
+A prompt-injected message that gets a low-risk, in-scope tool proposed
+can still steer it at an attacker-chosen argument - a separate, larger
+change from the category/rate-limit/approval boundary this module
+restores.
 
 The handful of tool calls that are NOT LLM-proposed (skills/rag/
 pii-exposure's forced disclose_pii_answer approval queue in gateway.py,
@@ -312,10 +318,10 @@ def _exec_remove_vector(args: dict) -> dict:
 
 
 def _exec_disclose_pii_answer(args: dict) -> dict:
-    """agentic_system branch: called directly from authorize_and_execute()
-    now, same as every other tool - the requires_approval gate that used
-    to mean this only ran after an admin clicked Approve is gone. On
-    `main`, this is only ever called from execute_approved_call()."""
+    """disclose_pii_answer is requires_approval=True (TOOL_CATALOG) - this
+    only ever runs from execute_approved_call(), after a human admin
+    explicitly approves the pending_tool_calls row authorize_and_execute()
+    queued. It never runs directly from authorize_and_execute() itself."""
     import os
     import sys
     _pipelines_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend", "pipelines")
@@ -406,34 +412,69 @@ _EXECUTORS = {
 
 
 def tools_for_category(request_category: str) -> list:
-    """agentic_system branch: category scoping removed - every request
-    category is offered the FULL tool catalog, not just the tools
-    declared relevant to it on main. The Security LLM alone decides
-    which tool (if any) fits, with no deterministic scope boundary."""
-    return list(TOOL_CATALOG.keys())
+    """The tools TOOL_CATALOG declares usable for this request_category -
+    the category-scope half of the deterministic MCP Tool Authorization
+    Gateway boundary. This is what the Security LLM's own prompt is even
+    offered (llm_discussion.py), so it isn't invited to reason about a
+    tool it could never get authorized anyway; authorize_and_execute()'s
+    own runtime check below is the second, independent half - what
+    actually stops an out-of-scope proposal that reaches it some other
+    way (e.g. backend/routers/agent_router.py's direct A2A call, which
+    doesn't go through this function's filtering first)."""
+    return [name for name, cfg in TOOL_CATALOG.items() if request_category in cfg["allowed_categories"]]
 
 
 def authorize_and_execute(tool_name: str, request_category: str, identity: str, arguments: dict,
                            decision_id: Optional[int] = None) -> ToolResult:
-    """agentic_system branch (2026-09-02, extended to cover arguments too):
-    category scoping, rate limiting, and the critical-risk human-approval
-    gate are REMOVED - any tool the Security LLM names, with whatever
-    arguments it supplied, executes immediately, regardless of category or
-    declared risk tier. Only two structural checks remain, neither a
-    security judgment: (1) does an executor function exist for this name,
-    and (2) does the executor accept the arguments it was given (a
-    KeyError/TypeError/ValueError from a missing or malformed argument is
-    caught and denied here, never left to crash the request). This is a
-    DELIBERATE, documented regression from main's original design - see
-    docs/AGENTIC_SYSTEM_EXPERIMENT.md. It means a prompt-injected message
-    that gets the model to propose block_ip/terminate_session/
-    remove_vector/disclose_pii_answer now auto-executes it, with
-    attacker-chosen arguments, and no human in the loop."""
+    """The boundary itself: every tool the Security LLM proposes passes
+    three deterministic gates, in order, before it ever executes - none of
+    them a security judgment the LLM gets a vote on:
+      1. category scope - is `tool_name` declared usable for this
+         request_category (TOOL_CATALOG[tool_name]["allowed_categories"])?
+         A critical tool like block_ip is only ever reachable from
+         "authentication", never "agent_security" - no agent, however
+         trusted or however its own registered tools claim otherwise, can
+         reach it via this path (see TOOL_CATALOG's own comments).
+      2. rate limit - has this identity called this tool too many times
+         recently (per-tool `rate_limit` config)?
+      3. requires_approval - a critical-risk tool (block_ip,
+         terminate_session, remove_vector, disclose_pii_answer,
+         revoke_agent_credentials, remove_agent_tool_access) is queued in
+         security_db.pending_tool_calls for a human admin to approve/deny
+         (backend/routers/security_router.py's /api/security/tool-calls
+         endpoints - the Admin Dashboard's "Pending tool approvals" tab),
+         never auto-executed.
+    Only once all three pass does the tool's real executor run - with
+    whatever `arguments` the Security LLM itself supplied (the
+    deterministic per-tool-name argument builder this used to be built
+    from, `_args_for()`, is intentionally not restored here - see this
+    module's docstring for the residual risk that leaves; a missing/
+    malformed key from a still-LLM-supplied argument dict is caught below
+    and denied, never left to crash the request)."""
     cfg = TOOL_CATALOG.get(tool_name)
     if cfg is None:
         siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="DENIED_UNKNOWN_TOOL",
                              detail=f"proposed by request_category={request_category}")
         return ToolResult(tool_name=tool_name, status="denied_out_of_scope", reason="unknown tool")
+
+    if request_category not in cfg["allowed_categories"]:
+        siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="DENIED_OUT_OF_SCOPE",
+                             detail=f"request_category={request_category} not in {cfg['allowed_categories']}")
+        return ToolResult(tool_name=tool_name, status="denied_out_of_scope",
+                           reason=f"'{tool_name}' is not authorized for category '{request_category}'")
+
+    if _rate_limited(tool_name, identity):
+        siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="DENIED_RATE_LIMIT",
+                             detail=f"identity={identity}")
+        return ToolResult(tool_name=tool_name, status="denied_rate_limited", arguments=arguments,
+                           reason="rate limit exceeded for this tool+identity")
+
+    if cfg["requires_approval"]:
+        call_id = security_db.create_pending_tool_call(decision_id, tool_name, identity, arguments)
+        siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="PENDING_APPROVAL",
+                             detail=f"call_id={call_id} identity={identity} arguments={arguments}")
+        return ToolResult(tool_name=tool_name, status="pending_approval", arguments=arguments, call_id=call_id,
+                           reason="risk=critical - queued for admin approval, not auto-executed")
 
     try:
         result = _EXECUTORS[tool_name](arguments)
@@ -444,8 +485,7 @@ def authorize_and_execute(tool_name: str, request_category: str, identity: str, 
                            reason=f"arguments did not match what this tool expects: {e}")
 
     siem_tool.log_event(agent_id="mcp_gateway", tool_name=tool_name, decision="AUTHORIZED_EXECUTED",
-                         detail=f"identity={identity} arguments={arguments} result={result} "
-                                f"[agentic_system: no category/rate-limit/approval gate applied]")
+                         detail=f"identity={identity} arguments={arguments} result={result}")
     return ToolResult(tool_name=tool_name, status="authorized_executed", arguments=arguments, result=result)
 
 

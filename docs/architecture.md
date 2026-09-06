@@ -101,7 +101,12 @@ consideration, so there is nothing left to "add".
   **No longer true as of the "agentic_system" merge below** - read that
   section before relying on this paragraph; it's kept here as the
   accurate historical record of this specific redesign, not of what
-  `main` currently enforces.
+  `main` currently enforces. **UPDATE 2026-09-06: true again** - the
+  agentic_system merge's removal of floor/ceiling/clamp_action was
+  itself reverted (see docs/AGENTIC_SYSTEM_EXPERIMENT.md's "What was
+  restored"); this paragraph's description of the floor/ceiling loop
+  running unconditionally over the full offered scope is once again
+  what `gateway.py::analyze()` does.
 - `security_gateway/detection.py::route_single`/`route_multi` (regex
   dispatch reading each skill's detection.yaml `routing:` rules) are kept
   as-is, and `supervisor_agent.py::route_authentication`/`route_files`/
@@ -236,10 +241,29 @@ in `docs/AGENTIC_SYSTEM_EXPERIMENT.md` - read that document, not this
 paragraph, for the real picture. It was then merged onto `main` at the
 user's explicit instruction, overriding this project's own
 CLAUDE.md-derived design principle that these boundaries must never be
-LLM-bypassable. `main` now behaves as `AGENTIC_SYSTEM_EXPERIMENT.md`
-describes, not as the "Supervisor Agent becomes pure orchestration"
-section above describes - that section is accurate history, not
-accurate present-tense behavior.
+LLM-bypassable.
+
+**UPDATE 2026-09-06: reverted, except for `LOCKOUT_THRESHOLD`.** The
+user's own review of this merge concluded the architecture (Supervisor
+Agent -> Skills -> Security LLM) was sound but production hardening
+needs the deterministic policy/enforcement boundary back between the
+LLM's decision and MCP execution - "LLM = intelligence, Policy = safety
+boundary, MCP = enforcement, Verification = proof." `detection.yaml`
+floor/ceiling, `policy.py::clamp_action`'s confidence gate, and
+`mcp_gateway.py`'s category scoping/rate limiting/critical-tool
+human-approval gate are all restored and covered by passing tests again
+(288 tests, `pytest tests/`). `webapp_db.py`'s fixed `LOCKOUT_THRESHOLD`
+was deliberately left as removed - `lock_account()` driven by the
+Security LLM's own BLOCK verdict is a policy-tuning choice, not the
+"LLM bypasses a boundary" problem this restoration targeted. What
+remains intentionally agentic: `mcp_gateway.py`'s tool-call ARGUMENTS
+still come straight from the Security LLM (the `_args_for()` per-tool
+deterministic builder was not restored) - see
+`docs/AGENTIC_SYSTEM_EXPERIMENT.md`'s "What was restored" section for
+the exact scope and residual risk. `main` now again behaves as the
+"Supervisor Agent becomes pure orchestration" section above describes,
+not as the rest of `AGENTIC_SYSTEM_EXPERIMENT.md` (kept as the historical
+record of the experiment) describes.
 
 What's still true regardless: bcrypt password verification and logout
 are unchanged - there is no coherent agentic substitute for a one-way

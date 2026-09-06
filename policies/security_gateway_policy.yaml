@@ -1,11 +1,22 @@
 # Deterministic enforcement layer for security_gateway/gateway.py.
 #
+# *** agentic_system branch caveat (see docs/AGENTIC_SYSTEM_EXPERIMENT.md)
+# *** - gateway.py::analyze() on THIS branch never calls policy.clamp_action()
+# (action = raw_action, unconditionally). That means every actions.<X>.enabled
+# flag and every min_confidence_to_enforce value below (category-level here,
+# or a skill's own response.yaml override) is currently NOT enforced - dead
+# config, kept as documentation of what main's design does. Only
+# action_effect()/action_config_value() (the `effect`/block_ttl_seconds
+# lookups) are actually read by gateway.py on this branch.
+#
 # The LLM (Security LLM Discussion node) proposes an action + confidence;
 # this file decides what a proposal is actually ALLOWED to do. The LLM
 # reasons about context - this file is the only place that says what's
 # permitted (CLAUDE.md section 7's SKILL/POLICY/LLM/MCP distinction). The
 # LLM can never edit this file, and gateway.py never trusts a proposed
-# action without checking it against these rules first.
+# action without checking it against these rules first. (On `main` - not
+# this branch - clamp_action() is what actually enforces the two rules
+# described immediately below.)
 #
 # min_confidence_to_enforce: if the model's own confidence is below this,
 # its proposed action is downgraded one step (BLOCK->MITIGATE,

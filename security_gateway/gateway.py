@@ -1,11 +1,8 @@
-"""AI Security Gateway - agentic_system branch.
-
-*** EXPERIMENTAL / DELIBERATELY INSECURE - see
-docs/AGENTIC_SYSTEM_EXPERIMENT.md before relying on this branch for
-anything. This is NOT the design running on `main`. ***
+"""AI Security Gateway.
 
     USER REQUEST -> Supervisor Agent -> {Skills, Knowledge, Security
-    Context} -> Security LLM -> Decision -> Enforcement (MCP Tools) ->
+    Context} -> Security LLM -> Decision -> Deterministic Policy Boundary
+    (floor/ceiling + confidence clamp) -> Enforcement (MCP Tools) ->
     verified.
 
 Every request path (auth login, chat query, file upload) calls
@@ -14,16 +11,51 @@ itself (the "Security Context"). `analyze()` asks `supervisor_agent.py`
 for the FULL set of taxonomy skills this request_category is
 responsible for (`all_skills_for()` - no filtering), builds ONE Security
 LLM prompt from every one of those skills' SKILL.md content plus
-retrieved threat knowledge plus the evidence, and - on this branch only
-- takes the Security LLM's `action` AS THE FINAL ENFORCED ACTION,
-unconditionally. `main`'s deterministic floor/ceiling
-(security_gateway/detection.py) and policy confidence clamp
-(policy.py::clamp_action) are NOT applied here: there is no
-deterministic layer left that the LLM cannot bypass, which is exactly
-what CLAUDE.md section 8 says must never be true. This branch exists to
-explore that removal directly, not because it's a good idea for a
-running system - see docs/AGENTIC_SYSTEM_EXPERIMENT.md for the full
-rationale and what specifically changed vs. `main`.
+retrieved threat knowledge plus the evidence, and gets back the Security
+LLM's proposed action + confidence + skill attribution.
+
+That proposal is NOT the final enforced action. Per CLAUDE.md section 8,
+the LLM reasons about context but cannot itself decide what's permitted -
+two deterministic layers sit between its proposal and enforcement, and
+the LLM cannot bypass either:
+
+  1. `security_gateway/detection.py`'s floor/ceiling - the most
+     restrictive matching floor across EVERY skill the Supervisor Agent
+     offered (not just the one the LLM says explains its verdict) RAISES
+     the action to a guaranteed minimum (e.g. skills/authentication/
+     password-spraying: 5+ distinct accounts sharing one password ->
+     minimum BLOCK, regardless of what the model itself proposed). A
+     ceiling does the opposite - caps the model's own excess caution -
+     but never below what an independent floor already demands.
+  2. `policy.py::clamp_action()` - policies/security_gateway_policy.yaml's
+     `actions.<ACTION>.enabled` flags and `min_confidence_to_enforce`
+     step a disabled or low-confidence proposal down one level
+     (BLOCK->MITIGATE->ALLOW), so an uncertain model call can't fully
+     block a legitimate request, and a category can disable an action
+     entirely.
+
+Once `action` is final, `mcp_gateway.py`'s own authorization gate
+(category scope, rate limit, requires_approval for critical-risk tools)
+is the second half of this same boundary, applied per proposed tool call
+- see that module's docstring. Together this is "LLM = intelligence,
+Policy = safety boundary, MCP = enforcement, Verification = proof."
+
+See docs/AGENTIC_SYSTEM_EXPERIMENT.md for the now-reverted experiment
+that removed this boundary entirely, and what (deliberately) remains
+agentic: tool call ARGUMENTS still come straight from the Security LLM,
+not a deterministic per-tool builder - a separate, larger change from
+the floor/ceiling/clamp/approval boundary restored here.
+
+The Security LLM is ALWAYS called, even when a floor would already
+guarantee the outcome - a floor merely agreeing with what the model
+would likely have said anyway is not the same thing as the model call
+itself failing (`DiscussionFailed` below is the only thing that ever
+substitutes a deterministic fallback for the model's own output). An
+earlier version of `analyze()` (2026-09-06) pre-empted `discuss()`
+entirely once evidence alone crossed a hard floor, purely as a cost/
+latency optimization; removed the same day at the user's explicit
+direction so the model always gets a chance to reason and produce real,
+natural reasoning text for every request.
 """
 import hashlib
 import json
@@ -45,6 +77,8 @@ from security_gateway.decision import SecurityDecision, ToolCall
 from security_gateway.llm_discussion import DiscussionFailed, discuss
 from security_gateway.mcp_tools import redis_tool, sandbox_tool, siem_tool
 
+_ACTION_RANK = {"ALLOW": 0, "MITIGATE": 1, "BLOCK": 2}
+
 
 @dataclass
 class GatewayResult:
@@ -63,6 +97,23 @@ class GatewayResult:
     fail_closed: bool = False
     tool_results: list = field(default_factory=list)   # list of mcp_gateway.ToolResult
     chain: Optional[dict] = None                        # chain_detection.detect_chain()'s return
+
+
+def _evaluate_floor(selected: list, evidence: dict) -> tuple:
+    """The most restrictive matching detection.yaml floor across every
+    (taxonomy_category, skill_id) in `selected`, evaluated purely from
+    evidence - no LLM involved. Called from analyze() AFTER the Security
+    LLM's verdict, never before it (the CLAUDE.md section 8 floor, which
+    must never depend on the model's own attribution - the model is
+    always asked first regardless of how the evidence looks). Returns
+    (action_or_None, reason_or_None, (category, skill_id)_or_None) - the
+    most restrictive one wins if more than one skill's floor matches."""
+    floor_action, floor_reason, floor_skill = None, None, None
+    for cat, sid in selected:
+        fa, reason = detection.apply_floor(cat, sid, evidence)
+        if fa is not None and (floor_action is None or _ACTION_RANK[fa] > _ACTION_RANK[floor_action]):
+            floor_action, floor_reason, floor_skill = fa, f"[{sid}] {reason}", (cat, sid)
+    return floor_action, floor_reason, floor_skill
 
 
 def _search_threat_knowledge(skill_ids: list) -> list:
@@ -89,10 +140,12 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
     # regex/condition-based filtering (see supervisor_agent.py's module
     # docstring for why). The Security LLM below is the only place
     # relevance gets reasoned about.
+    log(f"[gateway:{request_category}:{identity}] STEP 1/5 evidence gathered: "
+        f"{json.dumps(evidence, default=str)}")
     selected = supervisor_agent.all_skills_for(request_category)
     skill_ids_offered = [sid for _cat, sid in selected]
-    loaded_skills = [skills_mod.load_skill(cat, sid) for cat, sid in selected]
-    retrieved = _search_threat_knowledge(skill_ids_offered)
+    log(f"[gateway:{request_category}:{identity}] STEP 2/5 Supervisor Agent offered skills "
+        f"(unfiltered): {skill_ids_offered}")
     # Fallback defaults, used as-is only if the LLM call fails outright
     # (DiscussionFailed) or reports nothing matched - overwritten below
     # once the model reports which skill(s) actually explain its verdict.
@@ -103,6 +156,22 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
 
     fail_closed = False
     proposed_tools = []
+
+    # The Security LLM is ALWAYS called - evidence alone never skips it,
+    # no matter how unambiguous a floor below might make the outcome. An
+    # earlier version of this function short-circuited straight to BLOCK
+    # once evidence crossed a hard floor, purely as a cost/latency
+    # optimization - removed 2026-09-06 at the user's explicit direction
+    # ("need llm call" / "if llm fail only take discussion"): the model
+    # should always get a chance to reason and produce real, natural
+    # reasoning text, and the ONLY thing that ever substitutes a
+    # deterministic fallback for the model's own output is the model call
+    # itself actually failing (DiscussionFailed below), never a floor
+    # merely agreeing with what the model would likely have said anyway.
+    # The floor still enforces its guaranteed minimum afterward (layer 2,
+    # below) - it just never preempts asking in the first place.
+    loaded_skills = [skills_mod.load_skill(cat, sid) for cat, sid in selected]
+    retrieved = _search_threat_knowledge(skill_ids_offered)
     try:
         decision: SecurityDecision = await discuss(request_category, loaded_skills, evidence, retrieved,
                                                      available_tools=available_tools, model=model, log=log)
@@ -123,45 +192,84 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
             sid_to_category = {sid: cat for cat, sid in selected}
             primary_skill = (sid_to_category[matched_skill_ids[0]], matched_skill_ids[0])
             skill_ids = matched_skill_ids
+        log(f"[gateway:{request_category}:{identity}] STEP 3/5 Security LLM verdict: "
+            f"raw_action={raw_action} confidence={confidence:.2f} matched_skill_ids={matched_skill_ids or skill_ids_offered} "
+            f"reasoning={reasoning!r}")
 
-        # agentic_system branch: the LLM's raw_action IS the enforced
-        # action, unconditionally - no policy.clamp_action confidence/
-        # enabled-action gating. See docs/AGENTIC_SYSTEM_EXPERIMENT.md.
-        action = raw_action
+        # Deterministic policy boundary, layer 1: policy.py::clamp_action()
+        # steps a disabled-for-this-category action, or a proposal below
+        # its effective min_confidence_to_enforce (policies/
+        # security_gateway_policy.yaml, or the attributed skill's own
+        # response.yaml override), down one level - BLOCK->MITIGATE->ALLOW.
+        # The LLM proposes; this is what actually decides whether that
+        # proposal is permitted at full strength.
+        action = policy.clamp_action(request_category, raw_action, confidence, skill=primary_skill)
         # Hallucinated/out-of-catalog tool names are dropped here rather
         # than failing the whole decision - a malformed tool proposal must
         # never take down an otherwise-valid ALLOW/MITIGATE/BLOCK verdict.
         # `arguments` on each ToolCall are the LLM's own (security_gateway/
-        # mcp_gateway.py's former deterministic _args_for() builder was
-        # removed - see that module's docstring for the risk this is) -
-        # passed straight through, never re-derived from evidence here.
+        # mcp_gateway.py's former deterministic _args_for() builder is
+        # intentionally still not restored - see that module's docstring
+        # for the residual risk this leaves, a separate change from the
+        # policy boundary restored here) - passed straight through, never
+        # re-derived from evidence here.
         proposed_tools = [tc for tc in decision.required_tools if tc.name in available_tools]
     except DiscussionFailed as e:
         # Not a security judgment call to make agentic - there is no
-        # model output to reason from when the call itself failed. A
-        # single fixed fallback (not per-category policy config) is kept
-        # purely as infrastructure-failure handling, per CLAUDE.md's
-        # allowance for hardcoding "infrastructure safety" specifically
-        # (distinct from security DECISION logic, which this branch
-        # otherwise removes everywhere else).
+        # model output to reason from when the call itself failed. Falls
+        # back to policies/security_gateway_policy.yaml's
+        # fail_closed_action for this category (MITIGATE for
+        # authentication/rag_security/file_security, BLOCK for
+        # agent_security - "do not automatically trust another agent"
+        # means a failed discussion must not let an agent-to-agent tool
+        # request through in any form), not a single fixed action for
+        # every category.
         fail_closed = True
         raw_action, confidence = None, 0.0
         threat_indicators = ["security_llm_discussion_failed"]
-        reasoning = f"Security LLM Discussion node failed after retries ({e}); failing closed (infra fallback)."
-        action = "MITIGATE"
+        reasoning = f"Security LLM Discussion node failed after retries ({e}); failing closed per policy."
+        action = policy.fail_closed_action(request_category)
+        log(f"[gateway:{request_category}:{identity}] STEP 3/5 Security LLM Discussion FAILED ({e}) - "
+            f"failing closed to action={action}")
 
-    # agentic_system branch: detection.yaml's floor/ceiling are NOT
-    # enforced here - the Security LLM's own action (above) is final,
-    # never raised or capped by a deterministic rule. This is the
-    # deliberate removal of CLAUDE.md section 8's "the LLM cannot bypass
-    # a deterministic security boundary" guarantee for this experimental
-    # branch only - see docs/AGENTIC_SYSTEM_EXPERIMENT.md for what that
-    # means in practice (a manipulated or simply wrong model call is now
-    # the only thing between an unambiguous attack and ALLOW).
-    effect_skill = primary_skill
+    # Deterministic policy boundary, layer 2: detection.yaml floors/
+    # ceilings. The most restrictive matching floor across EVERY skill
+    # the Supervisor Agent offered (not just the one the LLM's own
+    # matched_skill_ids attributes the verdict to - a floor must not
+    # depend on the model correctly naming its own attack) RAISES the
+    # action to a guaranteed minimum; this is the CLAUDE.md section 8
+    # boundary the LLM cannot talk down. A ceiling does the reverse -
+    # caps the model's own excess caution - but never below what an
+    # independent floor already demands.
+    floor_action, floor_reason, floor_skill = _evaluate_floor(selected, evidence)
+    if floor_action is not None:
+        pre_floor_action = action
+        action = detection.enforce_floor(action, floor_action)
+        if action != pre_floor_action:
+            reasoning = f"{reasoning} | Deterministic floor raised action to {action}: {floor_reason}"
+
+    ceiling_action, ceiling_reason, ceiling_skill = None, None, None
+    for cat, sid in selected:
+        ca, reason = detection.apply_ceiling(cat, sid, evidence)
+        if ca is not None and (ceiling_action is None or _ACTION_RANK[ca] < _ACTION_RANK[ceiling_action]):
+            ceiling_action, ceiling_reason, ceiling_skill = ca, f"[{sid}] {reason}", (cat, sid)
+    if ceiling_action is not None and (floor_action is None or _ACTION_RANK[ceiling_action] >= _ACTION_RANK[floor_action]):
+        pre_ceiling_action = action
+        action = detection.enforce_ceiling(action, ceiling_action)
+        if action != pre_ceiling_action:
+            reasoning = f"{reasoning} | Deterministic ceiling capped action to {action}: {ceiling_reason}"
+
+    # Whichever skill's floor/ceiling actually matched governs the
+    # enforcement effect (response.yaml), not just the LLM-attributed
+    # primary_skill - a multi-skill request's attributed skill would
+    # otherwise silently skip the response.yaml override that produced
+    # this very outcome.
+    effect_skill = floor_skill or ceiling_skill or primary_skill
     effect = policy.action_effect(request_category, action, skill=effect_skill)
     sandbox_id = None
     blocked_identity = False
+    log(f"[gateway:{request_category}:{identity}] STEP 4/5 enforcement: action={action} effect={effect} "
+        f"proposed_tools={[tc.name for tc in proposed_tools]}")
 
     if effect == "tool_approval_required" and "disclose_pii_answer" not in [tc.name for tc in proposed_tools]:
         # Deterministic, not LLM-proposed (skills/rag/pii-exposure's
@@ -199,6 +307,8 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
         blocked_identity = True
 
     verified = _verify(request_category, identity, sandbox_id, blocked_identity)
+    log(f"[gateway:{request_category}:{identity}] STEP 5/5 verified={verified} "
+        f"blocked_identity={blocked_identity} sandbox_id={sandbox_id}")
 
     decision_id = siem_tool.log_decision(
         category=request_category, identity=identity, action=action, raw_action=raw_action,
@@ -210,12 +320,14 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
                          risk=("high" if action == "BLOCK" else "medium" if action == "MITIGATE" else "low"),
                          detail=f"skills={skill_ids} | {reasoning}")
 
-    # MCP Tool Authorization Gateway: agentic_system branch - category
-    # scope/rate-limit/approval gating are removed there (see that
-    # module's docstring), and each tool call's `arguments` are now the
-    # LLM's own, not re-derived from evidence here. Only the "does this
-    # tool exist, do its arguments actually work" structural checks
-    # remain.
+    # MCP Tool Authorization Gateway: each proposed tool call still goes
+    # through its own independent authorization (category scope, rate
+    # limit, requires_approval - see mcp_gateway.py's docstring) - the
+    # Security LLM's proposal is never trusted as sufficient authorization
+    # by itself, even after passing the floor/ceiling/clamp boundary above.
+    # `arguments` are still the LLM's own, not re-derived from evidence
+    # here (see this module's own docstring for why that's a separate,
+    # not-yet-restored change).
     tool_results = [
         mcp_gateway.authorize_and_execute(tc.name, request_category, identity, tc.arguments,
                                            decision_id=decision_id)
@@ -234,7 +346,7 @@ async def analyze(request_category: str, identity: str, evidence: dict, *,
 
     return GatewayResult(category=request_category, action=action, raw_action=raw_action, confidence=confidence,
                           threat_indicators=threat_indicators, reasoning=reasoning, skill_ids=skill_ids,
-                          floor_triggered=None,  # agentic_system branch: floor/ceiling removed, never fires
+                          floor_triggered=floor_action,
                           sandbox_id=sandbox_id, blocked_identity=blocked_identity,
                           verified=verified, decision_id=decision_id, fail_closed=fail_closed,
                           tool_results=tool_results, chain=chain)

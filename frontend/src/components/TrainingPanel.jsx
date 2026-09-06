@@ -544,6 +544,12 @@ function SecurityTab() {
 
   const blockedDecisions = decisions.filter((d) => d.action === "BLOCK").length;
   const mitigatedDecisions = decisions.filter((d) => d.action === "MITIGATE").length;
+  // redis_tool.block_identity's category is "ip_block" for a source IP
+  // (block_ip tool) vs "authentication"/"otp_verify"/"rate_limited" for a
+  // username/account - split here so the demo shows two distinct live
+  // lists instead of one flat "Blocked Identities" feed.
+  const blockedIps = blocked.filter((b) => b.category === "ip_block");
+  const blockedUsernames = blocked.filter((b) => b.category !== "ip_block");
 
   if (loading) {
     return <div className="px-0.5 py-2 text-sm text-ink-dim">Loading security data...</div>;
@@ -749,25 +755,63 @@ function SecurityTab() {
           )}
         </section>
 
-        <section>
-          <SectionHeading icon={Ban}>Blocked Identities</SectionHeading>
-          {blocked.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-line px-3 py-3 text-xs text-ink-dim">
-              Nothing currently blocked
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {blocked.map((b) => (
-                <div key={`${b.identity}-${b.category}`}
-                     className="flex items-center gap-2 rounded-lg border border-l-[3px] border-line border-l-red-500/50 bg-surface px-3 py-2.5 text-xs">
-                  <span className="shrink-0 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 font-medium text-red-400">
-                    {b.category}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-ink-dim">{b.identity} - {b.reason}</span>
-                </div>
-              ))}
-            </div>
-          )}
+        <section className="flex flex-col gap-9">
+          {/* Split by category (redis_tool.block_identity's "ip_block" vs
+              "authentication"/"otp_verify"/"rate_limited") into two clearly
+              labeled live lists, rather than one flat feed - for a
+              brute-force/password-spraying demo, "which IP" and "which
+              username" need to each be readable at a glance. */}
+          <div>
+            <SectionHeading icon={Ban}>Blocked IPs</SectionHeading>
+            {blockedIps.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line px-3 py-3 text-xs text-ink-dim">
+                No IPs currently blocked
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {blockedIps.map((b) => (
+                  <div key={`${b.identity}-${b.category}`}
+                       className="flex items-center gap-2 rounded-lg border border-l-[3px] border-line border-l-sky-400/60 bg-surface px-3 py-2.5 text-xs">
+                    <span className="shrink-0 rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 font-medium text-sky-400">
+                      IP
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-ink-dim">
+                      <span className="font-mono text-ink">{b.identity}</span> - {b.reason}
+                    </span>
+                    {b.expires_at && (
+                      <span className="shrink-0 font-mono text-[10px] text-ink-dim">until {b.expires_at}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <SectionHeading icon={Ban}>Blocked Usernames</SectionHeading>
+            {blockedUsernames.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line px-3 py-3 text-xs text-ink-dim">
+                No usernames currently blocked
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {blockedUsernames.map((b) => (
+                  <div key={`${b.identity}-${b.category}`}
+                       className="flex items-center gap-2 rounded-lg border border-l-[3px] border-line border-l-red-500/50 bg-surface px-3 py-2.5 text-xs">
+                    <span className="shrink-0 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 font-medium text-red-400">
+                      {b.category}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-ink-dim">
+                      <span className="font-medium text-ink">{b.identity}</span> - {b.reason}
+                    </span>
+                    {b.expires_at && (
+                      <span className="shrink-0 font-mono text-[10px] text-ink-dim">until {b.expires_at}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       </div>
 
@@ -788,7 +832,28 @@ function SecurityTab() {
                     </span>
                     <span className="font-medium text-ink">{d.category}</span>
                     <span className="text-ink-dim">{d.identity}</span>
+                    {typeof d.confidence === "number" && (
+                      <span className="ml-auto shrink-0 font-mono text-[10px] text-ink-dim">
+                        conf {d.confidence.toFixed(2)}
+                      </span>
+                    )}
                   </div>
+                  {/* skill_ids: which skill(s) the Security LLM's own
+                      matched_skill_ids attributed this verdict to - e.g.
+                      for authentication, one of brute-force/credential-
+                      stuffing/account-takeover/password-spraying (plus the
+                      four newer skills) - see gateway.py::analyze()'s
+                      Supervisor Agent attribution step. */}
+                  {d.skill_ids?.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {d.skill_ids.map((sid) => (
+                        <span key={sid}
+                              className="rounded-full border border-copper/30 bg-copper-soft px-1.5 py-0.5 font-mono text-[10px] text-copper">
+                          {sid}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-1 line-clamp-2 text-ink-dim">{d.reasoning}</div>
                 </div>
               ))
